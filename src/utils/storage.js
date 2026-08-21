@@ -8,6 +8,7 @@ const HIGH_SCORE_KEY = 'tinyfish.highScore';
 const COOP_HIGH_SCORE_KEY = 'tinyfish.coopHighScore';
 const SCORE_LIST_KEY = 'tinyfish.scoreList';
 const MUSIC_KEY = 'tinyfish.musicEnabled';
+const SFX_KEY = 'tinyfish.sfxEnabled';
 const MAX_SCORE_LIST = 10;
 
 function readRaw(key) {
@@ -80,4 +81,15 @@ export function isMusicEnabled() {
 
 export function setMusicEnabled(enabled) {
   writeRaw(MUSIC_KEY, String(enabled));
+}
+
+// Music and effects are switched separately: the ambient bed is the first thing
+// players turn off, and losing the cut/perfect feedback with it would take the
+// game's timing cues away too.
+export function isSfxEnabled() {
+  return readFlag(SFX_KEY);
+}
+
+export function setSfxEnabled(enabled) {
+  writeRaw(SFX_KEY, String(enabled));
 }

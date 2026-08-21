@@ -5,6 +5,7 @@ import { addUnderwaterBackground, addBubbles } from '../ui/backgroundEffects.js'
 import { createButton } from '../ui/createButton.js';
 import { LANDSCAPE_W, LANDSCAPE_H, HEADER_HEIGHT } from '../data/displayConfig.js';
 import { formatClock } from '../utils/format.js';
+import { startMusic, playSfx, SFX } from '../audio/audio.js';
 
 // Solo Arc Mode: one fish at a time, a per-fish countdown, swipe to slice it,
 // and score based on how close the cut ratio lands to a random target shown on
@@ -24,6 +25,7 @@ export default class ArcModeScene extends Phaser.Scene {
 
     addUnderwaterBackground(this);
     addBubbles(this, 8);
+    startMusic(this);
 
     // Reserve a slim header strip above the lane's own HUD (score/stage/target
     // bar) for the overall round timer + pause button, so neither layer collides
@@ -80,7 +82,9 @@ export default class ArcModeScene extends Phaser.Scene {
 
   updateRoundTimeText() {
     this.roundTimeText.setText(formatClock(this.roundTimeRemaining));
-    this.roundTimeText.setColor(this.roundTimeRemaining <= 10 ? '#ff5a5a' : '#ffffff');
+    const urgent = this.roundTimeRemaining <= 10;
+    this.roundTimeText.setColor(urgent ? '#ff5a5a' : '#ffffff');
+    if (urgent && this.roundTimeRemaining > 0) playSfx(this, SFX.TICK);
   }
 
   endRound() {

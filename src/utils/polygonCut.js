@@ -91,3 +91,26 @@ export function polygonCentroid(points) {
   });
   return { x: x / points.length, y: y / points.length };
 }
+
+// Where to place a horizontal chord, as a fraction of the ellipse's ry measured
+// from the centre, so that the smaller resulting piece is `percent` of the
+// ellipse's area.
+//
+// An ellipse's area above a horizontal chord scales exactly like a unit
+// circle's, and the circular-segment area function has no closed-form inverse,
+// so this bisects it. `percent` is clamped to 0..50 because the smaller of two
+// pieces can never be more than half.
+export function horizontalChordOffsetForPercent(percent) {
+  const target = Math.min(50, Math.max(0, percent)) / 100;
+  // Fraction of a unit circle lying above the line y = -t, for t in 0..1.
+  const areaAbove = (t) => (Math.acos(t) - t * Math.sqrt(Math.max(0, 1 - t * t))) / Math.PI;
+
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (areaAbove(mid) > target) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}

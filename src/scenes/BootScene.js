@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CUT_FISH_TYPES, OCTOPUS_BONUS } from '../data/fishData.js';
 import { SAND_HEIGHT, FISH_TEXTURE_W, FISH_TEXTURE_H, FISH_SUPERSAMPLE } from '../data/displayConfig.js';
+import { initAudio } from '../audio/audio.js';
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -17,6 +18,10 @@ export default class BootScene extends Phaser.Scene {
       this.buildFishTexture(`fish-${fish.key}`, fish);
     });
     this.buildFishTexture(`fish-${OCTOPUS_BONUS.key}`, OCTOPUS_BONUS);
+
+    // Sounds are synthesised the same way the textures are drawn — from code,
+    // at boot. Cheap enough to do inline; there is nothing to download.
+    initAudio(this);
 
     this.scene.start('MainMenu');
   }

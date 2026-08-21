@@ -5,8 +5,11 @@ import {
   getHighScore, saveHighScore, getCoopHighScore, saveCoopHighScore, pushScoreListEntry,
 } from '../utils/storage.js';
 import { LANDSCAPE_W, LANDSCAPE_H } from '../data/displayConfig.js';
+import { startMusic } from '../audio/audio.js';
 
-const EMPTY_STATS = { cutCount: 0, perfectCount: 0, nearPerfectCount: 0, missedCount: 0, octopusCount: 0 };
+const EMPTY_STATS = {
+  cutCount: 0, perfectCount: 0, nearPerfectCount: 0, missedCount: 0, octopusCount: 0, bestCombo: 0,
+};
 
 // Total score, high-score comparison, a breakdown of the round, plus replay /
 // menu buttons. Handles all three modes: solo (high score chase), co-op (shared
@@ -36,6 +39,7 @@ export default class FinalScoreScene extends Phaser.Scene {
 
     addUnderwaterBackground(this);
     addBubbles(this, 12);
+    startMusic(this);
 
     if (this.mode === 'versus') this.buildVersus(w, h);
     else this.buildSoloOrCoop(w, h);
@@ -123,6 +127,7 @@ export default class FinalScoreScene extends Phaser.Scene {
       ['Close', stats.nearPerfectCount],
       ['Missed', stats.missedCount],
       ['Octopus', stats.octopusCount],
+      ['Best combo', stats.bestCombo || 0],
     ];
     const rowH = 34;
 

@@ -100,6 +100,22 @@ export const DIFFICULTY_STAGES = [
   { minElapsed: 52, label: 'Riptide!', windAmplitude: 74, windSpeed: 3.2, cutTimeLimit: 3.5, bandColor: 0xff5a5a },
 ];
 
+// --- Combo -----------------------------------------------------------------
+// Landing a cut within COMBO_KEEP_DIFF of the target keeps the streak alive;
+// anything sloppier (or a fish that times out) drops it back to zero. The
+// multiplier is what makes a streak worth protecting, so it is capped — an
+// uncapped one would make the last ten seconds of a good run dwarf everything
+// before it.
+export const COMBO_KEEP_DIFF = TARGET_PERCENT_STEP; // Perfect or one bucket off
+export const COMBO_MIN_TO_SHOW = 2;
+export const COMBO_STEP_BONUS = 0.15;
+export const COMBO_MAX_MULTIPLIER = 2.5;
+
+export function comboMultiplier(comboCount) {
+  if (comboCount < COMBO_MIN_TO_SHOW) return 1;
+  return Math.min(COMBO_MAX_MULTIPLIER, 1 + (comboCount - 1) * COMBO_STEP_BONUS);
+}
+
 export function getStageForElapsed(elapsedSeconds) {
   let stage = DIFFICULTY_STAGES[0];
   for (const s of DIFFICULTY_STAGES) {

@@ -2,6 +2,7 @@
 // BPUI_MainMenu / BPUI_ArcMode / BPUI_Pause / BPUI_FinalScore.
 
 import Phaser from 'phaser';
+import { playSfx, SFX } from '../audio/audio.js';
 
 export function createButton(scene, x, y, w, h, label, { color = 0x2f9fe0, textColor = '#ffffff', fontSize = 24, disabled = false } = {}) {
   const container = scene.add.container(x, y);
@@ -40,7 +41,10 @@ export function createButton(scene, x, y, w, h, label, { color = 0x2f9fe0, textC
     container.setInteractive({ useHandCursor: true, hitArea: new Phaser.Geom.Rectangle(0, 0, w, h), hitAreaCallback: Phaser.Geom.Rectangle.Contains });
     container.on('pointerover', () => draw(color, 0.85));
     container.on('pointerout', () => draw(color, 1));
-    container.on('pointerdown', () => container.setScale(0.94));
+    container.on('pointerdown', () => {
+      container.setScale(0.94);
+      playSfx(scene, SFX.BUTTON);
+    });
     container.on('pointerup', () => {
       container.setScale(1);
       draw(color, 1);

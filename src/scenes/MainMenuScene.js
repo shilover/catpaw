@@ -1,8 +1,12 @@
 import Phaser from 'phaser';
 import { createButton } from '../ui/createButton.js';
 import { addUnderwaterBackground, addBubbles } from '../ui/backgroundEffects.js';
-import { getHighScore, getCoopHighScore, getScoreList, isMusicEnabled, setMusicEnabled } from '../utils/storage.js';
+import {
+  getHighScore, getCoopHighScore, getScoreList,
+  isMusicEnabled, setMusicEnabled, isSfxEnabled, setSfxEnabled,
+} from '../utils/storage.js';
 import { LANDSCAPE_W, LANDSCAPE_H, FISH_SUPERSAMPLE } from '../data/displayConfig.js';
+import { startMusic, syncMusic, playSfx, SFX } from '../audio/audio.js';
 
 // Mirrors BPUI_MainMenu: background_main, title_00, button_arc / button_vs,
 // button_setting_music / button_setting_Contactme / button_setting_list.
@@ -18,6 +22,7 @@ export default class MainMenuScene extends Phaser.Scene {
 
     addUnderwaterBackground(this);
     addBubbles(this, 20);
+    startMusic(this);
 
     this.add.image(w / 2, h * 0.13, 'paw').setScale(1.7).setAlpha(0.9);
 
@@ -100,32 +105,44 @@ export default class MainMenuScene extends Phaser.Scene {
 
   buildSettingsRow(w, h) {
     const y = h - 70;
-    let musicOn = isMusicEnabled();
 
-    // Toggling used to `scene.restart()` — rebuilding the background, bubbles and
-    // every decorative fish — purely to recolour this one icon.
-    const buildMusicBtn = () => {
-      const btn = createButton(this, w / 2 - 90, y, 64, 64, musicOn ? '♪' : '✕', {
-        color: musicOn ? 0x2fbf71 : 0x888888,
-        fontSize: 26,
-      });
-      btn.on('pointerup', () => {
-        musicOn = !musicOn;
-        setMusicEnabled(musicOn);
-        btn.destroy();
-        buildMusicBtn();
-      });
-      return btn;
-    };
-    buildMusicBtn();
+    // Music and effects switch independently — see storage.isSfxEnabled.
+    // Toggling used to `scene.restart()`, rebuilding the background, bubbles and
+    // every decorative fish purely to recolour one icon; now only the button
+    // itself is rebuilt, and the change is applied to the audio immediately.
+    this.buildToggle(w / 2 - 135, y, isMusicEnabled, (on) => {
+      setMusicEnabled(on);
+      syncMusic(this);
+    }, '♪');
 
-    createButton(this, w / 2, y, 64, 64, 'ℹ', { color: 0x2f9fe0, fontSize: 26 }).on('pointerup', () => {
+    this.buildToggle(w / 2 - 45, y, isSfxEnabled, setSfxEnabled, '🔊');
+
+    createButton(this, w / 2 + 45, y, 64, 64, 'ℹ', { color: 0x2f9fe0, fontSize: 26 }).on('pointerup', () => {
       this.showContactPopup(w, h);
     });
 
-    createButton(this, w / 2 + 90, y, 64, 64, '≡', { color: 0x8a5cff, fontSize: 26 }).on('pointerup', () => {
+    createButton(this, w / 2 + 135, y, 64, 64, '≡', { color: 0x8a5cff, fontSize: 26 }).on('pointerup', () => {
       this.showScoreListPopup(w, h);
     });
+  }
+
+  buildToggle(x, y, read, write, onLabel) {
+    let on = read();
+    const build = () => {
+      const btn = createButton(this, x, y, 64, 64, on ? onLabel : '✕', {
+        color: on ? 0x2fbf71 : 0x888888,
+        fontSize: 26,
+      });
+      btn.on('pointerup', () => {
+        on = !on;
+        write(on);
+        // Confirm the new state audibly, but only when turning effects back on.
+        if (on) playSfx(this, SFX.BUTTON);
+        btn.destroy();
+        build();
+      });
+    };
+    build();
   }
 
   showContactPopup(w, h) {
