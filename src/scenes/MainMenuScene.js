@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { createButton } from '../ui/createButton.js';
 import { addUnderwaterBackground, addBubbles } from '../ui/backgroundEffects.js';
-import { getHighScore, getScoreList, isMusicEnabled, setMusicEnabled } from '../utils/storage.js';
-import { LANDSCAPE_W, LANDSCAPE_H } from '../data/displayConfig.js';
+import { getHighScore, getCoopHighScore, getScoreList, isMusicEnabled, setMusicEnabled } from '../utils/storage.js';
+import { LANDSCAPE_W, LANDSCAPE_H, FISH_SUPERSAMPLE } from '../data/displayConfig.js';
 
 // Mirrors BPUI_MainMenu: background_main, title_00, button_arc / button_vs,
 // button_setting_music / button_setting_Contactme / button_setting_list.
@@ -37,12 +37,18 @@ export default class MainMenuScene extends Phaser.Scene {
       color: '#bfe9ff',
     }).setOrigin(0.5);
 
-    const highScore = getHighScore();
-    this.add.text(w / 2, h * 0.29 + 78, `High Score: ${highScore}`, {
+    this.add.text(w / 2, h * 0.29 + 78, `High Score: ${getHighScore()}`, {
       fontFamily: 'Arial, sans-serif',
       fontSize: '20px',
       color: '#ffe38a',
       fontStyle: 'bold',
+    }).setOrigin(0.5);
+
+    // Co-op keeps its own best, so both are worth showing.
+    this.add.text(w / 2, h * 0.29 + 104, `Team Best: ${getCoopHighScore()}`, {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '15px',
+      color: '#8affc1',
     }).setOrigin(0.5);
 
     // Three side-by-side mode buttons — makes better use of the widescreen
@@ -78,11 +84,13 @@ export default class MainMenuScene extends Phaser.Scene {
 
     this.buildSettingsRow(w, h);
 
-    // decorative fish filling the wide margins either side of the menu
-    this.add.image(w * 0.09, h * 0.55, 'fish-clown').setScale(0.7).setFlipX(true).setAlpha(0.85);
-    this.add.image(w * 0.91, h * 0.55, 'fish-octopus').setScale(0.6).setAlpha(0.85);
-    this.add.image(w * 0.14, h * 0.82, 'fish-cute').setScale(0.55).setAlpha(0.8);
-    this.add.image(w * 0.86, h * 0.82, 'fish-clown').setScale(0.5).setFlipX(true).setAlpha(0.8);
+    // Decorative fish filling the wide margins either side of the menu. Scales
+    // are in design units; the fish textures are supersampled, so divide.
+    const deco = (v) => v / FISH_SUPERSAMPLE;
+    this.add.image(w * 0.09, h * 0.55, 'fish-clown').setScale(deco(0.7)).setFlipX(true).setAlpha(0.85);
+    this.add.image(w * 0.91, h * 0.55, 'fish-octopus').setScale(deco(0.6)).setAlpha(0.85);
+    this.add.image(w * 0.14, h * 0.82, 'fish-cute').setScale(deco(0.55)).setAlpha(0.8);
+    this.add.image(w * 0.86, h * 0.82, 'fish-clown').setScale(deco(0.5)).setFlipX(true).setAlpha(0.8);
   }
 
   goTo(sceneKey) {
@@ -94,15 +102,22 @@ export default class MainMenuScene extends Phaser.Scene {
     const y = h - 70;
     let musicOn = isMusicEnabled();
 
-    const musicBtn = createButton(this, w / 2 - 90, y, 64, 64, musicOn ? '♪' : '✕', {
-      color: musicOn ? 0x2fbf71 : 0x888888,
-      fontSize: 26,
-    });
-    musicBtn.on('pointerup', () => {
-      musicOn = !musicOn;
-      setMusicEnabled(musicOn);
-      this.scene.restart();
-    });
+    // Toggling used to `scene.restart()` — rebuilding the background, bubbles and
+    // every decorative fish — purely to recolour this one icon.
+    const buildMusicBtn = () => {
+      const btn = createButton(this, w / 2 - 90, y, 64, 64, musicOn ? '♪' : '✕', {
+        color: musicOn ? 0x2fbf71 : 0x888888,
+        fontSize: 26,
+      });
+      btn.on('pointerup', () => {
+        musicOn = !musicOn;
+        setMusicEnabled(musicOn);
+        btn.destroy();
+        buildMusicBtn();
+      });
+      return btn;
+    };
+    buildMusicBtn();
 
     createButton(this, w / 2, y, 64, 64, 'ℹ', { color: 0x2f9fe0, fontSize: 26 }).on('pointerup', () => {
       this.showContactPopup(w, h);
@@ -125,8 +140,14 @@ export default class MainMenuScene extends Phaser.Scene {
 
   showScoreListPopup(w, h) {
     const list = getScoreList();
+    // Entries carry a mode now, and the list mixes solo with co-op runs, so the
+    // rows would otherwise be ambiguous.
     const body = list.length
-      ? list.slice(0, 5).map((entry, i) => `${i + 1}. ${entry.score}`).join('\n')
+      ? list.slice(0, 5).map((entry, i) => {
+        const mode = entry.mode === 'coop' ? 'Co-op' : 'Solo';
+        const when = entry.date ? new Date(entry.date).toLocaleDateString() : '';
+        return `${i + 1}.  ${entry.score}   ${mode}  ${when}`;
+      }).join('\n')
       : 'No runs yet — go catch some fish!';
     this.showPopup(w, h, 'Recent Scores', body);
   }

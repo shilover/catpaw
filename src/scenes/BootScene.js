@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CUT_FISH_TYPES, OCTOPUS_BONUS } from '../data/fishData.js';
+import { SAND_HEIGHT, FISH_TEXTURE_W, FISH_TEXTURE_H, FISH_SUPERSAMPLE } from '../data/displayConfig.js';
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -44,13 +45,12 @@ export default class BootScene extends Phaser.Scene {
       g.fillTriangle(x, 0, x + 70, 0, x - 40, h);
     }
 
-    // sandy sea floor (height kept in sync with ArcModeScene's SAND_HEIGHT)
-    const sandHeight = 22;
+    // sandy sea floor
     g.fillStyle(0x2f5d3a, 1);
-    g.fillRect(0, h - sandHeight, w, sandHeight);
+    g.fillRect(0, h - SAND_HEIGHT, w, SAND_HEIGHT);
     g.fillStyle(0x3d7248, 1);
     for (let x = -20; x < w + 40; x += 40) {
-      g.fillEllipse(x, h - sandHeight, 50, 12);
+      g.fillEllipse(x, h - SAND_HEIGHT, 50, 12);
     }
 
     g.generateTexture('bg-underwater', w, h);
@@ -88,9 +88,14 @@ export default class BootScene extends Phaser.Scene {
   }
 
   buildFishTexture(key, fish) {
-    const w = 140;
-    const h = 96;
+    const w = FISH_TEXTURE_W;
+    const h = FISH_TEXTURE_H;
     const g = this.make.graphics({ x: 0, y: 0 }, false);
+    // Every drawing routine below works in design units; scaling the Graphics
+    // itself rasterises the same artwork into a texture FISH_SUPERSAMPLE times
+    // larger, so the sprites (which shrink back down by the same factor) keep
+    // their edges when blown up to playing size.
+    g.setScale(FISH_SUPERSAMPLE);
     // Centered on the canvas itself so the sprite's origin (0.5, 0.5) lands
     // exactly on the drawn body's geometric center — the slicing math in
     // ArcModeScene assumes fish.x/fish.y IS that center.
@@ -107,7 +112,7 @@ export default class BootScene extends Phaser.Scene {
     const drawer = drawers[fish.key] || this.drawClownFish;
     drawer.call(this, g, cx, cy, fish);
 
-    g.generateTexture(key, w, h);
+    g.generateTexture(key, w * FISH_SUPERSAMPLE, h * FISH_SUPERSAMPLE);
     g.destroy();
   }
 

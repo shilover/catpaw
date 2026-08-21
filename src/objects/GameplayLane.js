@@ -10,6 +10,7 @@ import {
 import CuttableFish from './CuttableFish.js';
 import BonusOctopus from './BonusOctopus.js';
 import TargetBar from '../ui/targetBar.js';
+import { createPieceTexture, destroyPieceTexture, toTextureSpace } from '../utils/pieceTexture.js';
 import {
   buildEllipsePolygon,
   cutPolygon,
@@ -17,19 +18,37 @@ import {
   polygonCentroid,
   pointSegmentDistance,
 } from '../utils/polygonCut.js';
+import {
+  HUD_HEIGHT,
+  FLOOR_MARGIN,
+  FISH_TEXTURE_W,
+  FISH_TEXTURE_H,
+  FISH_PIXEL_W,
+  FISH_PIXEL_H,
+  fishSpriteScale,
+  RING_PADDING,
+} from '../data/displayConfig.js';
 
-const MIN_SWIPE_DISTANCE = 40;
-const HUD_HEIGHT = 96;
-const FLOOR_MARGIN = 20;
-const FISH_TEXTURE_W = 140;
-const FISH_TEXTURE_H = 96;
-const RING_PADDING = 8;
+// A swipe shorter than this fraction of the lane's smaller side counts as a tap,
+// not a cut. Relative rather than absolute so the threshold means the same thing
+// in a full-height solo lane and in a half-height split-screen one.
+const MIN_SWIPE_FRACTION = 0.09;
+// The swipe is sampled into a polyline; points closer together than this add
+// cost without adding shape.
+const TRAIL_MIN_STEP = 6;
+const TRAIL_MAX_POINTS = 64;
+// Redrawing the countdown ring rebuilds a Graphics, so skip frames where the arc
+// would not visibly move.
+const RING_REDRAW_EPSILON = 0.004;
 
-// One player's play area: spawns fish, tracks its own swipes/score, and
-// reacts to difficulty stages + (in Versus) obstruction effects from the
-// opponent. Positioned in absolute world coordinates (a rect); the owning
-// Scene decides how that rect is actually presented on screen (a plain
-// viewport for a solo game, or a rotated split-screen camera for 2P modes).
+// One player's play area: spawns fish, tracks its own swipes/score, and reacts
+// to difficulty stages + (in Versus) obstruction effects from the opponent.
+// Positioned in absolute world coordinates (a rect); the owning Scene decides
+// how that rect is actually presented on screen (a plain viewport for a solo
+// game, or a rotated split-screen camera for 2P modes).
+//
+// Everything here is frame-driven: the owning Scene must call `update(time,
+// delta)` every frame, and `destroy()` on shutdown.
 export default class GameplayLane {
   constructor(scene, opts) {
     this.scene = scene;
@@ -42,29 +61,38 @@ export default class GameplayLane {
     this.onScoreChange = opts.onScoreChange || (() => {});
     this.onCutResolved = opts.onCutResolved || (() => {});
     this.onMissed = opts.onMissed || (() => {});
-    // Solo/Versus lanes auto-spawn their own next fish; Co-op overrides this
-    // so the scene can spawn one shared fish for both lanes at once instead.
+    // Solo/Versus lanes auto-spawn their own next fish; Co-op overrides this so
+    // the scene can spawn one shared fish for both lanes at once instead.
     this.onRoundAdvance = opts.onRoundAdvance || null;
-    // Split-screen lanes are much shorter than a full solo screen, so fish
-    // (sized for the old full-height layout) need to shrink to fit.
     this.fishScaleMultiplier = opts.fishScaleMultiplier || 1;
 
     this.score = 0;
+    // Split out of `score` so Co-op can tell shared progress (both lanes resolve
+    // the same fish, so their cut points are identical) apart from what this
+    // player alone earned by grabbing bonus octopuses.
+    this.bonusScore = 0;
     this.stats = { cutCount: 0, perfectCount: 0, nearPerfectCount: 0, missedCount: 0, octopusCount: 0 };
     this.roundOver = false;
     this.currentFish = null;
-    this.dragStart = null;
+    this.swipePoints = null;
     this.elapsed = 0;
     this.stage = getStageForElapsed(0);
     this.disabled = false;
+
+    this.fishTimeRemaining = 0;
+    this.fishTimeLimit = 1;
+    this.lastRingRatio = -1;
+    // Cut debris still in flight, culled in update(). Each piece owns a one-off
+    // canvas texture that has to be released along with the sprite.
+    this.pieces = [];
+    this.activeOctopus = null;
+    this.wobble = null;
 
     this.gameLayer = scene.add.container(0, 0);
     this.trailGraphics = scene.add.graphics().setDepth(20);
     this.obstructionLayer = scene.add.graphics().setDepth(40);
 
     this.buildHud();
-
-    this.fishTickEvent = null;
   }
 
   get floorY() {
@@ -73,6 +101,10 @@ export default class GameplayLane {
 
   get hudTop() {
     return this.regionY;
+  }
+
+  get minSwipeDistance() {
+    return Math.min(this.regionW, this.regionH) * MIN_SWIPE_FRACTION;
   }
 
   buildHud() {
@@ -98,8 +130,8 @@ export default class GameplayLane {
     }
   }
 
-  // Fish can be scaled arbitrarily large, so the spawn position is computed
-  // from its actual on-screen radius rather than a fixed margin, keeping it
+  // Fish can be scaled arbitrarily large, so the spawn position is computed from
+  // the fish's actual on-screen radius rather than a fixed margin, keeping it
   // (and its countdown ring) clear of the HUD and the sea floor.
   getSpawnBounds(fishType) {
     const approxRadius = Math.max(FISH_TEXTURE_W, FISH_TEXTURE_H) * fishType.size * 0.5 + RING_PADDING;
@@ -132,10 +164,9 @@ export default class GameplayLane {
     }
   }
 
-  // A brief center-screen banner call-out whenever the current gets stronger,
-  // so the difficulty bump is felt, not just read off a small HUD label.
+  // A brief center-screen banner call-out whenever the current gets stronger, so
+  // the difficulty bump is felt, not just read off a small HUD label.
   flashStageBanner(stage) {
-    if (stage.windAmplitude === 0) return;
     const banner = this.scene.add.text(
       this.regionX + this.regionW / 2,
       this.regionY + this.regionH / 2,
@@ -159,8 +190,7 @@ export default class GameplayLane {
   }
 
   spawnFish(forcedFishType, forcedTarget) {
-    if (this.roundOver) return;
-    if (this.fishTickEvent) this.fishTickEvent.remove(false);
+    if (this.roundOver) return null;
 
     const baseFishType = forcedFishType || Phaser.Utils.Array.GetRandom(CUT_FISH_TYPES);
     const fishType = this.fishScaleMultiplier !== 1
@@ -178,51 +208,79 @@ export default class GameplayLane {
     this.gameLayer.add(fish);
     this.currentFish = fish;
 
-    this.applyWindToFish(fish);
-
     if (this.targetBar) this.targetBar.setTarget(target);
     this.fishTimeRemaining = this.stage.cutTimeLimit;
     this.fishTimeLimit = this.stage.cutTimeLimit;
-
-    this.fishTickEvent = this.scene.time.addEvent({
-      delay: 50,
-      loop: true,
-      callback: () => {
-        this.fishTimeRemaining -= 0.05;
-        if (this.currentFish) this.currentFish.setCountdownRatio(this.fishTimeRemaining / this.fishTimeLimit);
-        if (this.fishTimeRemaining <= 0) {
-          this.fishTickEvent.remove(false);
-          this.onFishTimeout();
-        }
-      },
-    });
+    this.lastRingRatio = -1;
+    fish.setCountdownRatio(1);
 
     return fish;
   }
 
-  // Horizontal drift layered on top of the fish's own idle bob, driven by
-  // the current difficulty stage's "current" strength. Always runs (even at
-  // zero amplitude) so applyFishWobble's baseX nudges always take effect.
-  applyWindToFish(fish) {
-    if (fish.windEvent) fish.windEvent.remove(false);
-    fish.windEvent = this.scene.time.addEvent({
-      delay: 16,
-      loop: true,
-      callback: () => {
-        if (fish.resolved) return;
-        fish.x = fish.baseX + Math.sin(this.scene.time.now / 1000 * fish.windSpeed + fish.windOffset) * fish.windAmplitude;
-      },
-    });
+  // --- per-frame ------------------------------------------------------------
+
+  update(time, delta) {
+    const fish = this.currentFish;
+
+    if (fish && !fish.resolved) {
+      fish.updateIdle(time);
+      // Horizontal drift layered on top of the fish's own idle bob, driven by
+      // the current difficulty stage's "current" strength.
+      fish.x = fish.baseX + Math.sin((time / 1000) * fish.windSpeed + fish.windOffset) * fish.windAmplitude;
+
+      if (!this.roundOver) {
+        this.fishTimeRemaining -= delta / 1000;
+        const ratio = Phaser.Math.Clamp(this.fishTimeRemaining / this.fishTimeLimit, 0, 1);
+        if (Math.abs(ratio - this.lastRingRatio) >= RING_REDRAW_EPSILON) {
+          this.lastRingRatio = ratio;
+          fish.setCountdownRatio(ratio);
+        }
+        if (this.fishTimeRemaining <= 0) this.onFishTimeout();
+      }
+    }
+
+    this.updateWobble(delta);
+    this.updatePieces();
+    if (this.activeOctopus) this.activeOctopus.update();
+  }
+
+  updatePieces() {
+    const killY = this.floorY + 80;
+    for (let i = this.pieces.length - 1; i >= 0; i--) {
+      const piece = this.pieces[i];
+      if (piece.y > killY) {
+        this.pieces.splice(i, 1);
+        destroyPieceTexture(this.scene, piece.pieceTextureKey);
+        piece.destroy();
+      }
+    }
+  }
+
+  updateWobble(delta) {
+    const w = this.wobble;
+    if (!w) return;
+    const fish = w.fish;
+    if (!fish || fish.resolved || fish !== this.currentFish) {
+      this.wobble = null;
+      return;
+    }
+    w.elapsed += delta;
+    if (w.elapsed >= w.duration) {
+      fish.baseX = w.originalX;
+      this.wobble = null;
+      return;
+    }
+    fish.baseX = w.originalX + Math.sin(w.elapsed / 40) * 22;
   }
 
   onFishTimeout() {
     const fish = this.currentFish;
     if (!fish || fish.resolved) return;
     this.currentFish = null;
+    this.wobble = null;
     this.stats.missedCount += 1;
     this.showFeedback(fish.x, fish.y - 40, 'Missed!', '#ff5a5a');
     this.onMissed();
-    if (fish.windEvent) fish.windEvent.remove(false);
     fish.playMissedAnimation(() => this.afterFishResolved());
   }
 
@@ -235,42 +293,87 @@ export default class GameplayLane {
     this.scene.time.delayedCall(300, () => this.spawnFish());
   }
 
+  // --- input ----------------------------------------------------------------
+
   handlePointerDown(worldPoint) {
     if (this.disabled) return;
-    this.dragStart = { x: worldPoint.x, y: worldPoint.y };
+    this.swipePoints = [{ x: worldPoint.x, y: worldPoint.y }];
     this.trailGraphics.clear();
   }
 
   handlePointerMove(worldPoint) {
-    if (!this.dragStart) return;
+    const points = this.swipePoints;
+    if (!points) return;
+
+    const last = points[points.length - 1];
+    if (Phaser.Math.Distance.Between(last.x, last.y, worldPoint.x, worldPoint.y) >= TRAIL_MIN_STEP) {
+      points.push({ x: worldPoint.x, y: worldPoint.y });
+      if (points.length > TRAIL_MAX_POINTS) points.shift();
+    }
+    this.drawTrail(points);
+  }
+
+  // The blade trail thins and fades toward the tail of the swipe, so the most
+  // recent motion reads as the cutting edge.
+  drawTrail(points) {
     this.trailGraphics.clear();
-    this.trailGraphics.lineStyle(4, 0xffffff, 0.85);
-    this.trailGraphics.lineBetween(this.dragStart.x, this.dragStart.y, worldPoint.x, worldPoint.y);
+    for (let i = 1; i < points.length; i++) {
+      const t = i / (points.length - 1);
+      this.trailGraphics.lineStyle(2 + 4 * t, 0xffffff, 0.15 + 0.7 * t);
+      this.trailGraphics.lineBetween(points[i - 1].x, points[i - 1].y, points[i].x, points[i].y);
+    }
   }
 
   handlePointerUp(worldPoint) {
     this.trailGraphics.clear();
-    const start = this.dragStart;
-    this.dragStart = null;
-    if (!start || this.disabled) return;
+    const points = this.swipePoints;
+    this.swipePoints = null;
+    if (!points || this.disabled) return;
 
-    const end = { x: worldPoint.x, y: worldPoint.y };
-    const dist = Phaser.Math.Distance.Between(start.x, start.y, end.x, end.y);
-    if (dist < MIN_SWIPE_DISTANCE) return;
-
-    this.tryCut(start, end);
+    points.push({ x: worldPoint.x, y: worldPoint.y });
+    this.tryCut(points);
   }
 
-  tryCut(p1, p2) {
+  // --- cutting --------------------------------------------------------------
+
+  // Takes the whole sampled swipe rather than just its endpoints: the cut is
+  // made along whichever segment actually passes closest to the fish, so an
+  // arced swipe cuts where the player drew instead of along the arc's chord.
+  tryCut(points) {
     const fish = this.currentFish;
     if (!fish || fish.resolved || this.roundOver) return null;
+    if (points.length < 2) return null;
+
+    const first = points[0];
+    const last = points[points.length - 1];
+    if (Phaser.Math.Distance.Between(first.x, first.y, last.x, last.y) < this.minSwipeDistance) return null;
 
     const cx = fish.x;
     const cy = fish.y;
     const { rx, ry } = fish.getRadii();
+    const reach = Math.max(rx, ry) + 10;
 
-    const distToFish = pointSegmentDistance(cx, cy, p1.x, p1.y, p2.x, p2.y);
-    if (distToFish > Math.max(rx, ry) + 10) return null;
+    let best = null;
+    let bestDist = Infinity;
+    for (let i = 1; i < points.length; i++) {
+      const d = pointSegmentDistance(cx, cy, points[i - 1].x, points[i - 1].y, points[i].x, points[i].y);
+      if (d < bestDist) {
+        bestDist = d;
+        best = [points[i - 1], points[i]];
+      }
+    }
+    if (!best || bestDist > reach) return null;
+
+    // Extend the chosen segment well past the fish so the cut line is a full
+    // chord even when the sampled segment only clips the edge.
+    const [a, b] = best;
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len < 1e-6) return null;
+    const ux = (b.x - a.x) / len;
+    const uy = (b.y - a.y) / len;
+    const span = reach * 2 + len;
+    const p1 = { x: a.x - ux * span, y: a.y - uy * span };
+    const p2 = { x: b.x + ux * span, y: b.y + uy * span };
 
     const polygon = buildEllipsePolygon(cx, cy, rx, ry, 28);
     const halves = cutPolygon(polygon, p1, p2);
@@ -283,27 +386,32 @@ export default class GameplayLane {
     if (total < 10) return null;
 
     const rawPercent = (Math.min(areaA, areaB) / total) * 100;
-    return this.resolveCut(fish, polyA, polyB, rawPercent);
+    return this.resolveCut(fish, polyA, polyB, rawPercent, { x: ux, y: uy });
   }
 
-  // Resolves a fish with an explicit outcome (used by Co-op so the passive
-  // side plays the exact same result as whichever player actually cut).
+  // Resolves a fish with an explicit outcome (used by Co-op so the passive side
+  // plays the exact same result as whichever player actually cut).
   resolveWithPercent(rawPercent) {
     const fish = this.currentFish;
     if (!fish || fish.resolved) return null;
     const { rx, ry } = fish.getRadii();
     const polygon = buildEllipsePolygon(fish.x, fish.y, rx, ry, 28);
-    const p1 = { x: fish.x - rx - 20, y: fish.y - ry * (1 - rawPercent / 50) };
-    const p2 = { x: fish.x + rx + 20, y: fish.y - ry * (1 - rawPercent / 50) };
-    const halves = cutPolygon(polygon, p1, p2) || [polygon, polygon];
-    return this.resolveCut(fish, halves[0], halves[1], rawPercent);
+    // A horizontal chord placed so the smaller resulting half really is
+    // `rawPercent` of the ellipse. Solved numerically because the circular
+    // segment's area has no closed-form inverse; the previous linear guess could
+    // miss the shape entirely and fall back to drawing two whole fish.
+    const cutY = fish.y - ry * horizontalChordOffsetForPercent(rawPercent);
+    const p1 = { x: fish.x - rx - 20, y: cutY };
+    const p2 = { x: fish.x + rx + 20, y: cutY };
+    const halves = cutPolygon(polygon, p1, p2);
+    if (!halves) return null;
+    return this.resolveCut(fish, halves[0], halves[1], rawPercent, { x: 1, y: 0 });
   }
 
-  resolveCut(fish, polyA, polyB, rawPercent) {
+  resolveCut(fish, polyA, polyB, rawPercent, cutDir) {
     fish.markResolved();
-    if (fish.windEvent) fish.windEvent.remove(false);
-    if (this.fishTickEvent) this.fishTickEvent.remove(false);
     this.currentFish = null;
+    this.wobble = null;
 
     const snapped = Phaser.Math.Clamp(snapToGrid(rawPercent), 0, 50);
     const diff = Math.abs(fish.targetPercent - snapped);
@@ -315,17 +423,17 @@ export default class GameplayLane {
     this.stats.cutCount += 1;
     if (isPerfect) this.stats.perfectCount += 1;
     else if (isNearPerfect) this.stats.nearPerfectCount += 1;
-    this.scoreText.setText(`Score: ${this.score}`);
+    this.scoreText.setText('Score: ' + this.score);
     this.onScoreChange(this.score);
 
     if (this.targetBar) this.targetBar.animateFillTo(snapped, { color: isPerfect ? 0xffd23f : 0x2fbf71 });
 
     const label = isPerfect
-      ? `PERFECT! +${points}`
-      : `${snapped}% (target ${fish.targetPercent}%)  +${points}`;
+      ? 'PERFECT! +' + points
+      : snapped + '% (target ' + fish.targetPercent + '%)  +' + points;
     this.showFeedback(fish.x, fish.y - 50, label, isPerfect ? '#ffd23f' : '#8affc1');
 
-    this.spawnPieces(fish, polyA, polyB);
+    this.spawnPieces(fish, polyA, polyB, cutDir);
 
     if (isPerfect) {
       this.scene.time.delayedCall(180, () => {
@@ -339,6 +447,7 @@ export default class GameplayLane {
             this.activeOctopus = null;
             this.collectOctopus(score, ox, oy);
           },
+          onExpire: () => { this.activeOctopus = null; },
         });
       });
     }
@@ -350,51 +459,48 @@ export default class GameplayLane {
     return result;
   }
 
-  spawnPieces(fish, polyA, polyB) {
-    const textureKey = `fish-${fish.fishType.key}`;
+  spawnPieces(fish, polyA, polyB, cutDir) {
+    const textureKey = 'fish-' + fish.fishType.key;
     const size = fish.fishType.size;
     const cx = fish.x;
     const cy = fish.y;
     fish.destroy();
 
+    // Push the halves apart along the cut's normal instead of comparing centroid
+    // X: for a near-horizontal cut both centroids share an X, and the two halves
+    // used to fly off together, hiding the slice entirely.
+    const nx = -cutDir.y;
+    const ny = cutDir.x;
+
     [polyA, polyB].forEach((poly) => {
       const centroid = polygonCentroid(poly);
-      const localPoly = poly.map((p) => ({ x: p.x - cx, y: p.y - cy }));
+      // The cut polygon is in world units; the texture it has to clip is the
+      // supersampled one, so convert through the sprite's real scale.
+      const spriteScale = fishSpriteScale(size);
+      const texPoly = toTextureSpace(poly, cx, cy, spriteScale, FISH_PIXEL_W, FISH_PIXEL_H);
+      const pieceKey = createPieceTexture(this.scene, textureKey, FISH_PIXEL_W, FISH_PIXEL_H, texPoly);
+      if (!pieceKey) return;
 
-      const maskGfx = this.scene.make.graphics({ x: cx, y: cy }, false);
-      maskGfx.fillStyle(0xffffff, 1);
-      maskGfx.fillPoints(localPoly, true);
-
-      const piece = this.scene.add.sprite(cx, cy, textureKey).setScale(size);
-      piece.setMask(maskGfx.createGeometryMask());
+      const piece = this.scene.add.sprite(cx, cy, pieceKey).setScale(spriteScale);
+      piece.pieceTextureKey = pieceKey;
       this.gameLayer.add(piece);
+      this.pieces.push(piece);
 
       this.scene.physics.add.existing(piece);
       piece.body.setAllowGravity(true);
       piece.body.setGravityY(1100);
-      const dirX = centroid.x < cx ? -1 : 1;
-      piece.body.setVelocity(dirX * Phaser.Math.Between(90, 160), -Phaser.Math.Between(260, 340));
 
-      const floorY = this.floorY + 80;
-      const watchEvent = this.scene.time.addEvent({
-        delay: 16,
-        loop: true,
-        callback: () => {
-          maskGfx.x = piece.x;
-          maskGfx.y = piece.y;
-          if (piece.y > floorY) {
-            watchEvent.remove(false);
-            maskGfx.destroy();
-            piece.destroy();
-          }
-        },
-      });
+      const sign = Math.sign((centroid.x - cx) * nx + (centroid.y - cy) * ny) || 1;
+      const push = Phaser.Math.Between(110, 190);
+      piece.body.setVelocity(
+        nx * sign * push + Phaser.Math.Between(-30, 30),
+        ny * sign * push - Phaser.Math.Between(240, 320),
+      );
     });
   }
 
-  // Manual fallback for tapping the bonus octopus — see BonusOctopus.
-  // containsPoint's docblock for why split-screen modes need this instead
-  // of relying purely on the octopus sprite's own interactive pointerdown.
+  // --- bonus octopus --------------------------------------------------------
+
   tryCollectOctopusAt(worldPoint) {
     if (this.activeOctopus && this.activeOctopus.containsPoint(worldPoint.x, worldPoint.y)) {
       this.activeOctopus.collect();
@@ -405,10 +511,11 @@ export default class GameplayLane {
 
   collectOctopus(score, x, y) {
     this.score += score;
+    this.bonusScore += score;
     this.stats.octopusCount += 1;
-    this.scoreText.setText(`Score: ${this.score}`);
+    this.scoreText.setText('Score: ' + this.score);
     this.onScoreChange(this.score);
-    this.showFeedback(x, y, `+${score}`, '#ffd23f');
+    this.showFeedback(x, y, '+' + score, '#ffd23f');
   }
 
   showFeedback(x, y, str, color) {
@@ -426,10 +533,11 @@ export default class GameplayLane {
     });
   }
 
-  // --- Versus-mode obstruction effects (triggered by the opponent) --------
+  // --- Versus-mode obstruction effects (triggered by the opponent) -----------
 
   applyInkObstruction(durationMs = 2000) {
     this.obstructionLayer.clear();
+    this.obstructionLayer.setAlpha(1);
     this.obstructionLayer.fillStyle(0x1a0033, 0.72);
     this.obstructionLayer.fillRect(this.regionX, this.regionY, this.regionW, this.regionH);
     for (let i = 0; i < 6; i++) {
@@ -456,21 +564,7 @@ export default class GameplayLane {
   applyFishWobble(durationMs = 1800) {
     const fish = this.currentFish;
     if (!fish || fish.resolved) return;
-    const originalX = fish.baseX;
-    let elapsedMs = 0;
-    const wobbleEvent = this.scene.time.addEvent({
-      delay: 16,
-      loop: true,
-      callback: () => {
-        elapsedMs += 16;
-        if (!fish || fish.resolved || elapsedMs >= durationMs) {
-          wobbleEvent.remove(false);
-          if (fish && !fish.resolved) fish.baseX = originalX;
-          return;
-        }
-        fish.baseX = originalX + Math.sin(elapsedMs / 40) * 22;
-      },
-    });
+    this.wobble = { fish, originalX: fish.baseX, elapsed: 0, duration: durationMs };
     this.showFeedback(fish.x, fish.y - 70, 'Wobbled!', '#ff9de2');
   }
 
@@ -479,17 +573,28 @@ export default class GameplayLane {
   endRound() {
     if (this.roundOver) return;
     this.roundOver = true;
-    if (this.fishTickEvent) this.fishTickEvent.remove(false);
+    this.wobble = null;
     if (this.currentFish) {
-      if (this.currentFish.windEvent) this.currentFish.windEvent.remove(false);
       this.currentFish.markResolved();
       this.currentFish.destroy();
       this.currentFish = null;
+    }
+    if (this.activeOctopus) {
+      this.activeOctopus.expire();
+      this.activeOctopus = null;
     }
   }
 
   destroy() {
     this.endRound();
+    // Each piece carries a canvas texture of its own; dropping the sprite is not
+    // enough, the Texture Manager entry has to go with it.
+    this.pieces.forEach((piece) => {
+      destroyPieceTexture(this.scene, piece.pieceTextureKey);
+      piece.destroy();
+    });
+    this.pieces.length = 0;
+
     this.gameLayer.destroy();
     this.trailGraphics.destroy();
     this.obstructionLayer.destroy();
@@ -498,4 +603,21 @@ export default class GameplayLane {
     this.stageText.destroy();
     if (this.targetBar) this.targetBar.destroy();
   }
+}
+
+// Where to place a horizontal chord (as a fraction of ry, measured from the
+// centre) so the smaller resulting piece is `percent` of the ellipse's area. An
+// ellipse's area above a horizontal chord scales exactly like a unit circle's,
+// and that has no closed-form inverse, so bisect it.
+function horizontalChordOffsetForPercent(percent) {
+  const target = Phaser.Math.Clamp(percent, 0, 50) / 100;
+  const areaAbove = (t) => (Math.acos(t) - t * Math.sqrt(Math.max(0, 1 - t * t))) / Math.PI;
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (areaAbove(mid) > target) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
 }

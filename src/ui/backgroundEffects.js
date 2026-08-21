@@ -8,10 +8,10 @@ export function addUnderwaterBackground(scene) {
 }
 
 // A simple region-scoped gradient (no sand floor — a floor strip only makes
-// sense for a single full-height lane) for split-screen modes. When
-// `flipped` is true the color ramp is reversed so it still reads as
-// "darker toward the HUD, lighter toward open water" once the lane's
-// camera rotates it 180 degrees for the opposite-facing player.
+// sense for a single full-height lane) for split-screen modes. When `flipped` is
+// true the color ramp is reversed so it still reads as "darker toward the HUD,
+// lighter toward open water" once the lane's camera rotates it 180 degrees for
+// the opposite-facing player.
 export function addLaneBackground(scene, region, flipped = false) {
   const { x, y, width, height } = region;
   const g = scene.add.graphics();
@@ -38,6 +38,9 @@ export function addLaneBackground(scene, region, flipped = false) {
   return g;
 }
 
+// Drifting bubbles. Driven off the scene's own update event rather than a 16ms
+// repeating Timer: one frame-synced callback for the whole field instead of a
+// scheduler entry, and it stops cleanly with the scene.
 export function addBubbles(scene, count = 14, region = null) {
   const rx = region ? region.x : 0;
   const ry = region ? region.y : 0;
@@ -56,23 +59,21 @@ export function addBubbles(scene, count = 14, region = null) {
     bubbles.push(bubble);
   }
 
-  const updateEvent = scene.time.addEvent({
-    delay: 16,
-    loop: true,
-    callback: () => {
-      bubbles.forEach((b) => {
-        b.y -= (b.speed * 16) / 1000;
-        b.x = b.baseX + Math.sin(scene.time.now / 900 + b.wobbleOffset) * 12;
-        if (b.y < ry - 20) {
-          b.y = ry + h + 20;
-          b.baseX = Phaser.Math.Between(rx + 10, rx + w - 10);
-        }
-      });
-    },
-  });
+  const onUpdate = (time, delta) => {
+    const dt = delta / 1000;
+    bubbles.forEach((b) => {
+      b.y -= b.speed * dt;
+      b.x = b.baseX + Math.sin(time / 900 + b.wobbleOffset) * 12;
+      if (b.y < ry - 20) {
+        b.y = ry + h + 20;
+        b.baseX = Phaser.Math.Between(rx + 10, rx + w - 10);
+      }
+    });
+  };
 
-  scene.events.once('shutdown', () => updateEvent.remove(false));
-  scene.events.once('destroy', () => updateEvent.remove(false));
+  scene.events.on('update', onUpdate);
+  scene.events.once('shutdown', () => scene.events.off('update', onUpdate));
+  scene.events.once('destroy', () => scene.events.off('update', onUpdate));
 
   return bubbles;
 }

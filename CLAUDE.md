@@ -1,18 +1,38 @@
-# TFPhaser 项目规范
+# Tiny Fish 项目规范
 
-> 手机塔防游戏，基于 Phaser 4.2.1 + TypeScript + Vite（`template-vite-ts` 官方模板起步，
-> 已大幅魔改出自己的架构）。本文件按项目实际代码核实过，不是通用 Phaser 模板文档。
+> 休闲切鱼小手游（划屏切割 + 精度评分），基于 **Phaser 4.2.1 + 纯 JavaScript + Vite 5**。
+> 本文件按仓库实际代码核实过（2026-08-21 全量通读 `src/`），不是通用 Phaser 模板文档。
+> 项目现状与待办清单见 [docs/AUDIT.md](docs/AUDIT.md)。
 
 ---
 
-## 🔒 安全/风控红线
+## 🎯 这是个什么游戏
 
-- **禁止修改 `public/assets/` 中已发布的资源文件**（图片、音频、JSON 配置表等）。新增资源可以，
-  替换/删除已有文件必须先告知我。
+屏幕上一次出现一条鱼，玩家**划一刀**把它切成两半。评分看"较小那半的面积占比"与随机目标百分比
+（10%~50%，5% 步进）有多接近 —— 越接近分越高，完全命中（差值 0）判定为 Perfect，会弹出一只章鱼
+奖励，点中额外加分。回合固定 60 秒，期间难度按 `DIFFICULTY_STAGES` 分 4 档递增（洋流变强、单条鱼
+的倒计时变短）。
+
+三种模式：
+
+| 模式 | 场景 key | 画布 | 说明 |
+|---|---|---|---|
+| Arc | `ArcMode` | 横屏 1280×720 | 单人，冲高分 |
+| Co-op | `CoopMode` | 竖屏 540×960 | 双人上下分屏，**共享同一条鱼**，谁先切谁定结果，双方同享 |
+| Versus | `VersusMode` | 竖屏 540×960 | 双人上下分屏，各切各的鱼；Perfect 给对手泼墨，差一档让对手的鱼抖动 |
+
+双人模式的物理场景是：**一台手机平放在桌上，两人对坐**，所以上半屏的相机旋转 180°，让对面那位玩家
+看到的是正的。这条前提决定了分屏的相机 / 输入 / UI 布局写法，改动前务必理解（见下文"分屏"）。
+
+---
+
+## 🔒 红线
+
 - **禁止**在代码中硬编码密钥、Token、API 端点。
-- **禁止**直接操作 `Phaser.Game`/场景实例的私有属性（以 `_` 开头）。
-- 涉及存档数据（`src/game/systems/save/`）、未来的服务端同步逻辑的修改，先确认影响范围再动手，
-  别静默改变存档 schema。
+- **禁止**直接操作 `Phaser.Game` / 场景实例的私有属性（以 `_` 开头）。
+- 改动 `src/utils/storage.js` 的存档 key 或数据结构前先确认影响范围，别静默破坏已有玩家的本地存档。
+- 目前项目**没有任何二进制资源**（贴图全部程序化生成）。如果要引入真实美术/音频资源，先跟我确认
+  资源方案（目录、格式、加载流程），不要顺手塞几个文件进来。
 
 ---
 
@@ -23,218 +43,186 @@
   不确定的地方问清楚或去核实，不要一知半解就开始写。
 - **默认用中文回复**，除非我明确要求用英文。
 - **每完成一个任务，主动做一句话总结**：改了什么、结果如何，不用等我问。
-- **不要凭空猜测/手推结论**：不确定的地方去读代码/读文档核实，不要"大概率是这样"就直接下结论，
-  尤其是 Spine 骨骼动画相关的关键帧数值、坐标变换这类容易出错又不好肉眼查的东西，必须找到明确
-  依据（截图对照、日志、实际数据）才能说"确认/修好了"。
-- **移植设计稿/规格时要如实实现，不要偷偷简化**：做不到的地方要明确指出来问我，不要自己悄悄换
-  一种简化方案交差。Cocos 节点旋转是这类移植里的常见坑，特别注意。
-- **不要擅自扩大改动范围**：只做明确要求的事；如果发现要做的事跟现有功能/其他约定冲突，把冲突点
-  列出来问我，不要自己拍板取舍。
-- **是否要跑 build/lint/test 验证会变，别凭旧印象猜**：这个仓库目前没有 lint/test 工具链（见下文），
-  "要不要自测"这类工作流偏好按我当下的要求来，不要假设跟上次一样。
+- **不要凭空猜测/手推结论**：不确定的地方去读代码 / 读 `node_modules/phaser/src/` 的源码核实，不要
+  "大概率是这样"就下结论。尤其是 Phaser 4 的 API（相机变换、遮罩、命中测试、滤镜）——**Phaser 4 跟
+  Phaser 3 有大量破坏性差异，网上搜到的 Phaser 3 写法经常是错的，必须去本地源码里确认**。
+- **涉及"看起来对不对"的改动，必须实际截图验证**（见下文"验证方式"），没截图对照过不能说"修好了"。
+- **不要擅自扩大改动范围**：只做明确要求的事；发现要做的事跟现有功能冲突，把冲突点列出来问我。
 
 ---
 
-## 🏗️ 实际目录结构
+## 🏗️ 目录结构
 
 ```
-TFPhaser/
-├── public/assets/
-│   ├── configs/          ← 所有 JSON 配置表（hero.json/monster.json/level.json/skill.json...）
-│   ├── spine/            ← Spine 骨骼动画（esotericsoftware spine-phaser-v4）
-│   ├── backgrounds/ map/ UI/ ...
+tinyfishphaser/
+├── index.html            ← Vite 入口，#app 容器 + 全屏样式
+├── vite.config.js        ← base 路径 / 构建配置
+├── docs/AUDIT.md         ← 项目调研报告 + 待办清单
 ├── src/
-│   ├── main.ts            ← DOMContentLoaded 后调用 StartGame('game-container')
-│   └── game/
-│       ├── main.ts         ← Phaser.Game 配置 + 全部场景注册（数组里 import 各 Scene 类）
-│       ├── scenes/         ← 一个场景一个文件，PascalCase 命名，非战斗场景平铺在这一层
-│       │   └── battle/     ← 5种关卡类型对应的战斗场景 + BattleRouter 路由
-│       ├── battle/
-│       │   ├── core/       ← 战斗核心逻辑：必须 Phaser-free、确定性、固定 tick（见下文"战斗架构"）
-│       │   └── assault/    ← 突击类玩法的引擎/特效
-│       ├── data/            ← 每张配置表一个 `XxxConfig.ts`（类型定义 + XxxConfigManager 单例）
-│       ├── entities/        ← Hero.ts / Equipment.ts 等运行时实体类
-│       ├── systems/         ← ConfigManager（配置表加载入口）、DropSystem、PlayerManager、
-│       │                        WaveRandomization、save/（存档）等跨场景系统
-│       └── ui/               ← UiFactory / Theme / Animations / SceneTransition 等通用 UI 工具
-├── tools/                  ← 离线工具（数值计算脚本、spine 合图工具、RandomMap 随机地图生成）
-├── vite/config.dev.mjs / config.prod.mjs
-└── ArknightsLevelData/     ← 明日方舟关卡数据本地镜像，仅供关卡设计参考，不接入构建
+│   ├── main.js            ← Phaser.Game 配置 + 场景注册数组
+│   ├── data/
+│   │   ├── displayConfig.js  ← 画布尺寸、分屏布局、贴图尺寸等**所有跨文件共享的常量**
+│   │   └── fishData.js       ← 鱼种表、目标百分比规则、评分公式、难度分段
+│   ├── scenes/            ← 一个场景一个文件，PascalCase
+│   │   └── SplitScreenSceneBase.js  ← Co-op / Versus 的公共基类（见下文"分屏"）
+│   ├── objects/           ← 运行时实体：CuttableFish / BonusOctopus / GameplayLane
+│   ├── ui/                ← createButton / targetBar / backgroundEffects
+│   └── utils/             ← polygonCut（纯几何）/ pieceTexture（碎片烘焙）/
+│                              storage（localStorage 存档）/ format（mm:ss）
 ```
 
-**没有** `src/constants/scene-keys.ts` 或 `animation-keys.ts` 这类统一常量文件——场景 key 就是
-类名字符串（见下文场景规范），战斗场景的类型→key 映射集中在 `BattleRouter.ts` 里的
-`BATTLE_SCENE_BY_TYPE`。新增同类映射就近放在对应模块，不要为了"规范"另起一个 constants 目录。
+**没有** `public/` 目录、**没有** TypeScript、**没有** React、**没有**统一的 scene-key 常量文件 ——
+场景 key 就是构造函数里传的字符串字面量（`super('ArcMode')`），切换直接写
+`this.scene.start('MainMenu')`。保持这个写法，不要新引入一套 key 枚举系统。
 
 ---
 
-## 🧩 核心架构：配置表系统
+## 🧩 核心架构
 
-所有可调数值/内容数据走**JSON配置表 + TS配置类**这一套，不要为单个数值散落写死在场景代码里：
+### `GameplayLane` 是整个玩法的中枢
 
-1. 数据落地在 `public/assets/configs/*.json`（如 `hero.json`、`level.json`、`skill.json`）。
-2. `src/game/data/XxxConfig.ts` 定义对应的 TS 类型 + `XxxConfigManager`（单例，持有解析后的数据，
-   提供按 id 查询等方法）。
-3. `src/game/systems/ConfigManager.ts` 集中登记 `CONFIG_PATHS`，由 `Preloader` 场景触发异步
-   `fetch` 加载，写入各自的 Manager 单例。
-4. 新增一张配置表：`public/assets/configs/` 加 json → `data/` 加对应 `XxxConfig.ts` →
-   `ConfigManager.ts` 里登记路径 + 调用加载。
+`src/objects/GameplayLane.js` 封装了**一个玩家的完整战场**：出鱼、倒计时、划屏判定、切割几何、
+计分、HUD、Versus 干扰效果。它接收一个世界坐标矩形（`{x, y, width, height}`），自己不关心这块
+区域最终怎么呈现在屏幕上 —— 单人模式是整屏，分屏模式是半屏 + 一台可能旋转 180° 的相机。
+
+> **新增玩法逻辑优先加在 `GameplayLane` 里，而不是往三个场景各抄一遍。** 三种模式的差异应该通过
+> 构造参数（`onCutResolved` / `onMissed` / `onRoundAdvance` / `fishScaleMultiplier` 等回调与开关）
+> 表达。
+
+`GameplayLane` **完全由帧驱动**：拥有它的场景必须每帧调 `lane.update(time, delta)`，并在
+`shutdown` 时调 `lane.destroy()`。鱼的浮动/洋流、倒计时、碎片回收、Versus 抖动全部走这条路径，
+**不要再引入 `time.addEvent` 定时器**（唯一保留的定时器是各模式那个 1 秒一次的回合时钟）。
+
+### 切割几何（`src/utils/polygonCut.js`）
+
+- 鱼身被近似成一个**椭圆多边形**（`buildEllipsePolygon`，28 段），玩家的划线是一条直线，
+  用 Sutherland-Hodgman 把凸多边形裁成两半（`cutPolygon`），算面积（`polygonArea`）得出占比。
+- 这个模块是**纯函数、零 Phaser 依赖**，请保持这个性质 —— 它是唯一可以脱离渲染做单元测试的部分。
+- 注意：鱼贴图上的鳍/尾巴是伸出椭圆之外的，切割只按椭圆算 —— 这是有意的近似，不是 bug。
+
+### 数据表（`src/data/fishData.js`）
+
+鱼种、目标百分比规则、评分公式（`scoreForDiff`）、难度分段（`DIFFICULTY_STAGES`）都集中在这里。
+**可调数值一律放这个文件，不要散落到场景代码里写死。** 目前是 JS 常量导出而非外部 JSON —— 规模还
+不需要配置表体系，别为了"规范"引入一套 JSON + Manager 的加载层。
+
+### 贴图是程序化生成的 + 超采样
+
+`BootScene` 用 `Graphics.generateTexture()` 现画所有贴图（5 条鱼 + 章鱼 + 背景 + 气泡 + 猫爪）。
+新增一种鱼 = 在 `fishData.js` 加一行 + 在 `BootScene` 加一个 `drawXxx` 方法并登记进 `drawers` 映射。
+
+⚠️ **鱼的贴图必须以画布几何中心为原点绘制**（`cx = w/2, cy = h/2`）—— 切割数学假设
+`fish.x / fish.y` 就是鱼身椭圆的中心，画偏了切割占比就全错。
+
+⚠️ **鱼贴图是按 `FISH_SUPERSAMPLE` 倍超采样光栅化的**（鱼在屏幕上要放大约 4 倍显示，1:1 贴图会糊）。
+所有绘制代码用「设计单位」（`FISH_TEXTURE_W/H` = 140×96）书写，`BootScene` 靠 `g.setScale()` 放大
+光栅化；**任何用鱼贴图建 Sprite 的地方，缩放都必须走 `fishSpriteScale(size)`**，直接 `setScale(size)`
+会大 3 倍。装饰性用途同理要除以 `FISH_SUPERSAMPLE`。
+
+### 切开后的碎片（`src/utils/pieceTexture.js`）
+
+切割瞬间把每一半**烘焙成一张独立的 canvas 贴图**（2D canvas 的 `destination-in` 合成），之后就是
+普通 Sprite。不要改回"遮罩一个完整鱼精灵"的做法：Phaser 4 的 `GeometryMask` **只支持 Canvas 渲染器**，
+而 WebGL 的替代品 `filters.internal.addMask(gameObject)` 会把遮罩对象渲染进一张跟对象滤镜帧缓冲同尺寸的
+DynamicTexture，世界坐标下的遮罩 Graphics 会落到画面外、碎片整个不显示（已实测截图确认）。
+
+每片碎片的贴图是一次性的，**必须跟着精灵一起 `destroyPieceTexture()` 回收**，否则会在 Texture Manager
+里越堆越多。
 
 ---
 
 ## 🎮 场景系统
 
-- 一个场景一个文件，**类名 = 文件名，PascalCase**（`BaseScene.ts`、`HeroListScene.ts`、
-  `BattleDrill.ts`），不是 kebab-case。
-- 场景在 `src/game/main.ts` 的 `scene: [...]` 数组里显式 import 并注册，新场景要记得加进这个数组。
-- 场景切换用**字符串字面量**（跟类名一致）：`this.scene.start('MainMenuScene')`、
-  `this.scene.launch('HeroDetailScene', { heroId, tab })`。项目里没有用枚举/常量包装这一层，
-  保持现有写法即可，不要新引入一套 scene-key 常量系统。
-- 没有 EventBus / `current-scene-ready` 这类"给外部 React UI 层用"的模式——项目**不含 React**，
-  纯 Phaser 场景，不要套用官方 `template-react-ts` 的写法。
+- 一个场景一个文件，**类名 = 文件名，PascalCase**；场景 key 是构造函数里的字符串（通常去掉 `Scene` 后缀）。
+- 新场景要显式 import 并加进 `src/main.js` 的 `scene: [...]` 数组。
+- **每个进入游戏的场景都要自己 `this.scale.setGameSize(...)`** —— 单人是横屏、双人是竖屏，画布尺寸
+  是全局的，谁进来谁负责设成自己要的尺寸，否则会继承上一个场景的画布。
 
-### 战斗场景（5种关卡类型）
+### 分屏（Co-op / Versus）
 
-`scenes/battle/` 下 `BattleDrill`/`BattleHold`/`BattleAssault`/`BattleEscape`/`BattleFort` 五个
-场景类对应 `LevelConfig` 里的 5 种 `LevelType`，由 `BattleRouter.startBattle()` 按类型路由。
-共享逻辑放 `BattleSceneBase.ts`，不要在 5 个子类里各自重复。
+`CoopModeScene` / `VersusModeScene` 都继承 `SplitScreenSceneBase`，基类负责画布尺寸、两个 lane 区域、
+相机、分隔线、每半屏的角落 HUD（计时 + 暂停）、输入分流、回合时钟、逐帧驱动和 shutdown 回收；
+子类只提供 `createLanes()` / `goToResults()`，以及可选的 `buildExtras()` / `afterCreate()`。
+**两个模式共有的东西加在基类里，不要再往两个子类各抄一份。**
 
----
+这是全项目最容易改错的地方：
 
-## ⚔️ 战斗核心逻辑架构（`src/game/battle/core/`）
-
-`FixedTickClock`/`SeededRandom`/`CombatFormula`/`BattleCommand` 这套战斗核心逻辑要求：
-
-- **不依赖 Phaser**：不直接 import `Phaser.*` 类型，不碰 Scene/GameObject，保持能脱离渲染层单独跑。
-- **确定性**：随机数走 `SeededRandom`，不用 `Math.random()`。
-- **固定 tick**：战斗推进走 `FixedTickClock` 的固定步长，不依赖 `update(delta)` 的可变帧间隔。
-
-这是为了让战斗逻辑可以脱离渲染做批量数值测试/回放（`tools/calc_*.js` 系列数值脚本、以及关卡平衡
-测试都依赖这个前提）。`DamageNumberFx.ts`（跳字特效）等纯表现层代码不受此约束，可以依赖 Phaser。
-
----
-
-## 📦 资源加载规范
-
-- 图片/音频等资源**不要**在 `src/` 里 `import`，Phaser 的加载系统走自己的路径解析，跟 Vite 的
-  import 处理会冲突。
-- 统一走 `this.load.setPath('assets')` + 相对文件名（`Preloader.ts` 里已设置好 base path），
-  新增加载调用直接写相对路径，不用拼 `/assets/xxx` 绝对路径。
-- Spine 骨骼动画走 `SpinePlugin`（已在 `game/main.ts` 的 `plugins.scene` 里注册，`mapping: 'spine'`），
-  合图/转换工具在 `tools/pack_spine_atlas.js`。
+- 上半屏（region A）用 `cameras.main`，**`setRotation(Math.PI)` 旋转 180°**；下半屏（region B）是
+  新加的 `camB`，不旋转。
+- **两个 lane 的 UI 元素用完全相同的、未旋转的本地布局来写**。相机的旋转已经把它看到的一切都转过来了，
+  再给元素自己加一次 `angle` 就会转两次。
+- 输入必须**手动按 `pointer.y` 分流到对应相机**，再用 `cam.getWorldPoint()` 转成世界坐标交给对应的
+  lane —— 不能直接用 `pointer.worldX/worldY`。
+- Phaser 4 在"存在第二台旋转相机 + 多个 interactive 对象"时，自带的命中测试会漏掉对象。项目里因此
+  有手写矩形命中兜底（`SplitScreenSceneBase.hitsAnyPauseButton` / `PauseScene.routePointer`）。
+  碰到"按钮点不动"先怀疑这个，不要怀疑按钮本身。**注意兜底和 Phaser 自身的 `pointerup` 可能都会触发，
+  一次性动作要自己去重**（见 `PauseScene.claim()`）。
+- **Phaser 会复用场景实例**：任何一次性标记（比如 `PauseScene.acted`）必须在 `init()` 里重置，
+  否则第二次进这个场景时还是上次的值。
+- 双人同屏要两根手指同时生效，靠的是 `main.js` 里的 `input.activePointers`（Phaser 默认只有 1）。
 
 ---
 
 ## 📝 命名规范
 
 | 类别 | 规范 | 示例 |
-|------|------|------|
-| 场景/类/配置类型 | `PascalCase`，文件名跟类名一致 | `HeroListScene.ts`, `HeroConfig.ts` |
-| 函数/变量/属性 | `camelCase` | `playerSpeed`, `isGameOver` |
-| 配置表 JSON 文件 | `camelCase.json` | `hero.json`, `dropGroup.json` |
-| 枚举/联合类型值 | 优先字符串字面量联合类型而非数字枚举，便于跟 JSON 配置表互相映射（见 `GameConfig.ts` 开头注释） | `type LevelType = 'DRILL' \| 'HOLD' \| ...` |
+|---|---|---|
+| 场景 / 实体类 | `PascalCase`，文件名 = 类名 | `ArcModeScene.js`, `GameplayLane.js` |
+| 工具 / UI 模块 | `camelCase.js`，导出具名函数或 default class | `polygonCut.js`, `targetBar.js` |
+| 函数 / 变量 / 属性 | `camelCase` | `roundTimeRemaining`, `isPerfect` |
+| 模块级常量 | `UPPER_SNAKE_CASE` | `ROUND_TIME_LIMIT`, `SPLIT_Y` |
+| localStorage key | `tinyfish.` 前缀 | `tinyfish.highScore` |
 
 ---
 
-## 🛠️ 实际可用命令
+## 🛠️ 可用命令
 
 ```bash
-npm install          # 安装依赖
-npm run dev           # 开发服务器（node log.js dev & vite --config vite/config.dev.mjs）
-npm run build          # 生产构建（node log.js build & vite build --config vite/config.prod.mjs），
-                        # 构建后自动跑 postbuild: compress-dist（压缩 dist/assets 下的图片）
-npm run dev-nolog      # 不发送匿名统计数据的开发服务器
-npm run build-nolog    # 不发送匿名统计数据的生产构建
-npm run compress-images # 单独跑图片压缩工具（tools/compress_images.js）
+npm install       # 安装依赖
+npm run dev       # Vite 开发服务器
+npm run build     # 生产构建 → dist/
+npm run preview   # 本地预览生产构建
 ```
 
-- `runbuild.bat` / `rundev.bat` 只是 `npm run build` / `npm run dev` 的本地快捷方式。
-- **项目目前没有配置 `lint`/`type-check`/`test:unit` 这几个 npm script，也没装 ESLint/Vitest/
-  Prettier**——不要假设这些命令存在，也不要在没有明确要求的情况下擅自引入整套 lint/test 工具链。
-  如果需要类型检查，直接用 `npx tsc --noEmit`。
+**项目没有配置 lint / type-check / test，也没装 ESLint / Vitest / Prettier** —— 不要假设这些命令存在，
+也不要在没有明确要求的情况下擅自引入整套工具链。
+
+### 验证方式
+
+改了任何影响画面的东西，**跑起来截图看**，不要靠读代码想象结果：
+
+```bash
+npm run dev          # 起服务（默认 http://localhost:5173）
+```
+
+然后用 Playwright 驱动截图（chromium 已装在本机 `~/AppData/Local/ms-playwright`）。
+`main.js` 在开发模式下会把 game 实例挂到 `window.__PHASER_GAME__`，可以用它跳场景、注入状态、
+读取分数来做自动化验证。**这个调试出口只在 `import.meta.env.DEV` 下存在，不会进生产包。**
+
+---
+
+## 📌 容易踩的坑
+
+- ❌ **在 `update()` 里创建新的 GameObject** —— 内存泄漏。
+- ❌ **用 `time.addEvent({delay:16, loop:true})` 代替 `update()`** —— 项目早期到处是这个写法，
+  每条鱼/每片碎片一个独立定时器，开销和泄漏风险都很大。逐帧逻辑一律走场景的 `update(time, delta)`。
+- ❌ **给 `polygonCut.js` 引入 Phaser 依赖** —— 会破坏它可脱离渲染测试的前提。
+- ❌ **假设 Phaser 3 的 API 在 Phaser 4 里还一样** —— 遮罩、滤镜、命中测试、Graphics 曲线 API
+  都有破坏性变化（例如 Phaser 4 的 `Graphics` 没有 `quadraticCurveTo`，项目里是手动采样贝塞尔的；
+  `GeometryMask` 只在 Canvas 渲染器下可用，WebGL 要走 `filters.internal.addMask`）。**去读
+  `node_modules/phaser/src/` 确认**。
+- ❌ **给分屏模式的 UI 元素自己加 `angle`** —— 相机已经转过一次了。
+- ❌ **忘记在新场景里 `setGameSize`** —— 会继承上一个场景的画布尺寸，横竖屏串味。
+- ❌ **直接用 `pointer.worldX/worldY` 处理分屏输入** —— 必须走对应相机的 `getWorldPoint()`。
+- ❌ **裸调 `localStorage.setItem`** —— iOS Safari 无痕模式会抛异常，一律走 `utils/storage.js` 的封装。
 
 ---
 
 ## Git 提交规范
 
-**实际约定是中文自然语言描述改动内容**（不是 Conventional Commits 的 `feat:`/`fix:` 前缀），
-参考近期提交：
+**中文自然语言描述改动内容**（不是 Conventional Commits 的 `feat:` / `fix:` 前缀）。一句话概括改了
+什么、为什么改；多个不相关改动用分号在同一条提交信息里分开说明。参考：
 
 ```
-修复英雄迎敌/归位移动时骨骼形象不播走动动画的问题；归位途中朝向改为跟随真实行进方向
-新增12个英雄及突刺(14号)方向技能，配套灵魂道具/招募池；主线1-20关怪物血量攻击按4卡点...重算并应用
+初始提交：Tiny Fish 切鱼小游戏（Phaser 4 + Vite）
 ```
-
-一句话概括改了什么、为什么改；多个不相关改动可以用分号在同一条提交信息里分开说明。
-
----
-
-## 📌 项目特定约定（容易忘/容易踩的坑）
-
-### 英雄/技能/物品
-
-- **新增英雄必须配套一个专属灵魂道具**：`hero.json` 加新英雄时，`item.json` 里要同步加一个对应的
-  per-hero 灵魂道具，两者是强绑定关系。
-- **新技能必须走技能系统，不能写成单个英雄的 ad-hoc 代码**：通过 `SkillConfig` + 技能效果实现层
-  接入，不要为某个英雄单独写一套技能触发逻辑。
-
-### 关卡/地图
-
-- **关卡地形数据（`level.json` 的 `terrainGrid`）只存核心 roadlogic 网格**，不要把外围的
-  padding（美术留白用的 `PAD_CELLS`）烘焙进 `terrainGrid`——那部分用 `backgroundPadCells` 单独
-  表达。
-- 关卡随机化：`WaveRandomization.ts` 目前只保留"方向锁定"和"双基地 boss 随机"两种随机机制，
-  通用的出怪/怪物类型二次随机已经在之前的重构里删掉了（有过 stale-cache 的 bug 教训），不要
-  凭印象以为还有更多随机层。
-- 新的地形制作流程：在 Tiled 里用生成好的色块贴图画地形，再由 Claude 把导出的 `.tmj` 解码回
-  `level.json`——不是手写 `terrainGrid` 字符网格。
-- 主线战斗现在会先巡镜一遍出怪点/基地、播放"开始战斗"横幅，才正式进入战斗，由 `introPlaying`
-  状态门控——改战斗开场流程时要留意这段。
-- 招募界面的状态最终要做成服务端控制，不能靠客户端随便重置——目前是过渡阶段，新功能别依赖
-  "客户端本地状态就是权威"这个假设。
-- `Battletype1PreviewScene.ts` 是调试用的 UI 拼装展示场景，不是真实战斗场景，不要把它当正式战斗
-  场景去扩展功能。Drill/Fort 顶部栏已经按真实 `Fight.prefab` 数据做了像素/字体级对齐，改动后要去
-  "battletype1 UI预览"场景比对验证，不能凭肉眼感觉判断对不对。
-
-### 数值平衡
-
-- 怪物血量/攻击力的正式计算工具：`tools/calc_tight_monster_hp_batch.js`（血量）+
-  `tools/calc_monster_attack.js`（攻击力）。
-- 9005 关（demo 章节）是固定的单波次数值测试沙盒，用于验证怪物强度/部署配置，配套的 `deployCap`
-  部署上限是同批做的正式功能，不是临时代码。
-- 关卡/怪物数值平衡测试有一套可复用方法：Playwright 驱动 + 临时测试 hook，用"漏怪计数器"而不是
-  "基地剩余血量"判定平衡结果更准；**测试用的 hook 是临时代码，验证完必须清理掉**，不要留在正式
-  代码里。
-- 做类似数值平衡工作前，建议先看一下之前那次血量公式返工的教训（错误的 C=4 假设、技能伤害没算进
-  dps 模型、部署位置相关的 bug、改动范围失控这几类问题），避免重复踩同样的坑。
-
-### Spine 骨骼动画
-
-- 合图工具 `tools/pack_spine_atlas.js` 是零坐标变换版本（多页图集，JSON 逐字节透传）；旧的
-  裁剪版留档在 `tools/pack_spine_atlas_legacy_cropped.js`，两者不要混用。
-- 调试 Spine 相关问题时：核对具体命名的元素，不要凭经验手推关键帧数值/坐标变换；没有截图实际
-  对照过，不能说"修好了"；注意合图工具的输出目录可能互相冲突覆盖；缺失的源数据字段不要自己加
-  猜测性兜底值；`attachment.name` 不等于外层字典的 key，两者容易搞混。
-
-### 版本状态
-
-- Phaser 版本：`package.json` 显示当前已是 `4.2.1`。之前有过"验证过 4.0.0→4.2.1 升级安全，但先
-  不在本项目升级"的决定，从依赖版本看这个升级看起来已经做完了——如果看到还在用旧写法/旧API，
-  确认一下是不是遗留代码，而不是假设项目还停留在 4.0.0。
-
-### ArknightsLevelData（关卡设计参考数据，非项目代码的一部分）
-
-- `activities/`（1823个活动关卡）只作为跟主线关卡的对比参考，**不并入** `by_archetype/` 分类或
-  ANALYSIS.md 里"给随机生成器的参数建议"这类统计口径，那些统计只用 `main/`（主线+磨难+支线）。
-
----
-
-## ⚠️ 常见陷阱
-
-- ❌ 在 `update()` 里创建新的 GameObject（内存泄漏）。
-- ❌ 给战斗核心逻辑（`battle/core/`）引入 Phaser 依赖或 `Math.random()`——会破坏确定性/可脱离渲染
-  测试的前提。
-- ❌ 假设项目有 `lint`/`type-check`/`test`/ESLint/Vitest——目前没有，别凭空调用或引入。
-- ❌ 套用 Phaser 官方 React 模板的 EventBus/`current-scene-ready` 模式——本项目不含 React。
-- ❌ 新建场景/配置类时用 kebab-case 文件名——跟现有 PascalCase 约定不一致。
-- ❌ 未经确认直接替换/删除 `public/assets/` 下已发布的资源文件。

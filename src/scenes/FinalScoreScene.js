@@ -1,13 +1,16 @@
 import Phaser from 'phaser';
 import { createButton } from '../ui/createButton.js';
 import { addUnderwaterBackground, addBubbles } from '../ui/backgroundEffects.js';
-import { getHighScore, saveHighScore, pushScoreListEntry } from '../utils/storage.js';
+import {
+  getHighScore, saveHighScore, getCoopHighScore, saveCoopHighScore, pushScoreListEntry,
+} from '../utils/storage.js';
+import { LANDSCAPE_W, LANDSCAPE_H } from '../data/displayConfig.js';
 
 const EMPTY_STATS = { cutCount: 0, perfectCount: 0, nearPerfectCount: 0, missedCount: 0, octopusCount: 0 };
 
-// Mirrors BPUI_FinalScore: total score, HighScore comparison (AutoSaveGame),
-// a breakdown of the round, plus IF_RePlay / Menu buttons. Handles all three
-// modes: solo (high score chase), co-op (shared score), versus (P1 vs P2).
+// Total score, high-score comparison, a breakdown of the round, plus replay /
+// menu buttons. Handles all three modes: solo (high score chase), co-op (shared
+// score), versus (P1 vs P2).
 export default class FinalScoreScene extends Phaser.Scene {
   constructor() {
     super('FinalScore');
@@ -24,6 +27,10 @@ export default class FinalScoreScene extends Phaser.Scene {
   }
 
   create() {
+    // The split-screen modes leave the canvas in portrait. This screen's layout
+    // (and the background texture it uses) is authored for landscape, so it has
+    // to claim the size it needs rather than inherit whatever came before.
+    this.scale.setGameSize(LANDSCAPE_W, LANDSCAPE_H);
     const w = this.scale.width;
     const h = this.scale.height;
 
@@ -35,38 +42,38 @@ export default class FinalScoreScene extends Phaser.Scene {
   }
 
   buildSoloOrCoop(w, h) {
-    const previousHigh = getHighScore();
-    const isNewHigh = saveHighScore(this.finalScore);
-    pushScoreListEntry(this.finalScore);
+    const isCoop = this.mode === 'coop';
+    // Co-op totals are two players working a shared fish, so they get their own
+    // best rather than competing with (and permanently beating) solo runs.
+    const previousHigh = isCoop ? getCoopHighScore() : getHighScore();
+    const isNewHigh = isCoop ? saveCoopHighScore(this.finalScore) : saveHighScore(this.finalScore);
+    pushScoreListEntry(this.finalScore, this.mode);
 
-    const title = this.mode === 'coop' ? 'TEAM RESULT' : 'ROUND OVER';
+    const title = isCoop ? 'TEAM RESULT' : 'ROUND OVER';
     this.add.text(w / 2, 70, title, {
       fontFamily: 'Arial, sans-serif', fontSize: '28px', fontStyle: 'bold', color: '#bfe9ff',
     }).setOrigin(0.5);
 
-    this.add.text(w / 2, 128, `${this.finalScore}`, {
+    this.add.text(w / 2, 128, String(this.finalScore), {
       fontFamily: 'Arial, sans-serif', fontSize: '58px', fontStyle: 'bold', color: '#ffe38a',
       stroke: '#0a2a4a', strokeThickness: 6,
     }).setOrigin(0.5);
 
-    if (this.mode === 'coop') {
-      this.add.text(w / 2, 178, '🤝 Great teamwork!', {
-        fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#8affc1',
-      }).setOrigin(0.5);
-    } else if (isNewHigh) {
-      const badge = this.add.text(w / 2, 178, '★ NEW HIGH SCORE ★', {
+    if (isNewHigh) {
+      const badge = this.add.text(w / 2, 178, isCoop ? '★ NEW TEAM BEST ★' : '★ NEW HIGH SCORE ★', {
         fontFamily: 'Arial, sans-serif', fontSize: '18px', fontStyle: 'bold', color: '#ffd23f',
       }).setOrigin(0.5);
       this.tweens.add({ targets: badge, scale: 1.15, duration: 500, yoyo: true, repeat: -1 });
     } else {
-      this.add.text(w / 2, 178, `High Score: ${Math.max(previousHigh, this.finalScore)}`, {
+      const label = isCoop ? 'Team Best' : 'High Score';
+      this.add.text(w / 2, 178, label + ': ' + Math.max(previousHigh, this.finalScore), {
         fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#dff2ff',
       }).setOrigin(0.5);
     }
 
     this.buildBreakdown(w / 2, 220, this.stats);
 
-    const replayTarget = this.mode === 'coop' ? 'CoopMode' : 'ArcMode';
+    const replayTarget = isCoop ? 'CoopMode' : 'ArcMode';
     createButton(this, w / 2, h - 120, 240, 62, 'Replay', { color: 0xff8a3d, fontSize: 26 })
       .on('pointerup', () => this.scene.start(replayTarget));
 
@@ -81,7 +88,7 @@ export default class FinalScoreScene extends Phaser.Scene {
       fontFamily: 'Arial, sans-serif', fontSize: '24px', fontStyle: 'bold', color: '#bfe9ff',
     }).setOrigin(0.5);
 
-    const resultLabel = winner === 'draw' ? "IT'S A DRAW!" : `PLAYER ${winner === 'A' ? 1 : 2} WINS!`;
+    const resultLabel = winner === 'draw' ? "IT'S A DRAW!" : 'PLAYER ' + (winner === 'A' ? 1 : 2) + ' WINS!';
     const resultText = this.add.text(w / 2, 96, resultLabel, {
       fontFamily: 'Arial, sans-serif', fontSize: '26px', fontStyle: 'bold', color: '#ffd23f',
     }).setOrigin(0.5);
@@ -99,10 +106,10 @@ export default class FinalScoreScene extends Phaser.Scene {
   }
 
   buildPlayerColumn(x, y, colW, label, score, stats, isWinner) {
-    this.add.text(x + colW / 2, y, `${isWinner ? '👑 ' : ''}${label}`, {
+    this.add.text(x + colW / 2, y, (isWinner ? '👑 ' : '') + label, {
       fontFamily: 'Arial, sans-serif', fontSize: '18px', fontStyle: 'bold', color: isWinner ? '#ffd23f' : '#ffffff',
     }).setOrigin(0.5);
-    this.add.text(x + colW / 2, y + 40, `${score}`, {
+    this.add.text(x + colW / 2, y + 40, String(score), {
       fontFamily: 'Arial, sans-serif', fontSize: '38px', fontStyle: 'bold', color: '#ffe38a',
     }).setOrigin(0.5);
 
@@ -128,7 +135,7 @@ export default class FinalScoreScene extends Phaser.Scene {
       this.add.text(centerX - width / 2 + 18, rowY, label, {
         fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#ffffff',
       }).setOrigin(0, 0.5);
-      this.add.text(centerX + width / 2 - 18, rowY, `${value}`, {
+      this.add.text(centerX + width / 2 - 18, rowY, String(value), {
         fontFamily: 'Arial, sans-serif', fontSize: '16px', fontStyle: 'bold', color: '#ffe38a',
       }).setOrigin(1, 0.5);
     });
