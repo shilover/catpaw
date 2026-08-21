@@ -35,7 +35,6 @@ import {
   polygonArea,
   polygonCentroid,
   pointSegmentDistance,
-  horizontalChordOffsetForPercent,
 } from '../utils/polygonCut.js';
 import { t } from '../i18n/index.js';
 import {
@@ -498,25 +497,6 @@ export default class GameplayLane {
     return Math.min(raw, 180 - raw) <= (required.tolerance || 25);
   }
 
-  // Resolves a fish with an explicit outcome (used by Co-op so the passive side
-  // plays the exact same result as whichever player actually cut).
-  resolveWithPercent(rawPercent) {
-    const fish = this.currentFish;
-    if (!fish || fish.resolved) return null;
-    const { rx, ry } = fish.getRadii();
-    const polygon = buildEllipsePolygon(fish.x, fish.y, rx, ry, 28);
-    // A horizontal chord placed so the smaller resulting half really is
-    // `rawPercent` of the ellipse. Solved numerically because the circular
-    // segment's area has no closed-form inverse; the previous linear guess could
-    // miss the shape entirely and fall back to drawing two whole fish.
-    const cutY = fish.y - ry * horizontalChordOffsetForPercent(rawPercent);
-    const p1 = { x: fish.x - rx - 20, y: cutY };
-    const p2 = { x: fish.x + rx + 20, y: cutY };
-    const halves = cutPolygon(polygon, p1, p2);
-    if (!halves) return null;
-    return this.resolveCut(fish, halves[0], halves[1], rawPercent, { x: 1, y: 0 }, cutY - fish.y);
-  }
-
   resolveCut(fish, polyA, polyB, rawPercent, cutDir, actualDistance = 0) {
     fish.markResolved();
     this.currentFish = null;
@@ -716,6 +696,23 @@ export default class GameplayLane {
     this.scoreText.setText(t('score', { score: this.score }));
     this.onScoreChange(this.score);
     this.showFeedback(x, y, '+' + score, '#ffd23f');
+    playSfx(this.scene, SFX.BONUS);
+  }
+
+  // Points awarded by the mode rather than by a cut — Co-op's teamwork bonus.
+  // Tracked as bonus score so it stays distinguishable from cut points.
+  awardBonus(points, label) {
+    if (points <= 0) return;
+    this.score += points;
+    this.bonusScore += points;
+    this.scoreText.setText(t('score', { score: this.score }));
+    this.onScoreChange(this.score);
+    this.showFeedback(
+      this.regionX + this.regionW / 2,
+      this.hudTop + HUD_HEIGHT + 52,
+      label + '  +' + points,
+      '#8affc1',
+    );
     playSfx(this.scene, SFX.BONUS);
   }
 

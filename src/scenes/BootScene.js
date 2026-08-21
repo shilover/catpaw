@@ -5,6 +5,7 @@ import {
 } from '../data/displayConfig.js';
 import { initAudio } from '../audio/audio.js';
 import { isTutorialDone } from '../utils/storage.js';
+import { setBootProgress, hideBootSplash } from '../utils/bootSplash.js';
 import { paperize } from '../utils/paper.js';
 
 export default class BootScene extends Phaser.Scene {
@@ -13,21 +14,36 @@ export default class BootScene extends Phaser.Scene {
   }
 
   create() {
-    this.buildBackground();
-    this.buildBubble();
-    this.buildSpark();
-    this.buildPaw();
-    this.buildPaperScrap();
+    // Generation is done one job per frame rather than in a single blocking
+    // pass. The work is the same either way, but this lets the markup splash in
+    // index.html keep animating and show real progress — on a mid-range phone
+    // the whole sequence is a couple of seconds, and a frozen screen for that
+    // long reads as a crash.
+    this.jobs = [
+      () => this.buildBackground(),
+      () => this.buildBubble(),
+      () => this.buildSpark(),
+      () => this.buildPaw(),
+      () => this.buildPaperScrap(),
+      ...CUT_FISH_TYPES.map((fish) => () => this.buildFishTexture(`fish-${fish.key}`, fish)),
+      () => this.buildFishTexture(`fish-${OCTOPUS_BONUS.key}`, OCTOPUS_BONUS),
+      // Effects only; the music bed is built later, off the boot path.
+      () => initAudio(this),
+    ];
+    this.jobIndex = 0;
+    setBootProgress(0);
+  }
 
-    CUT_FISH_TYPES.forEach((fish) => {
-      this.buildFishTexture(`fish-${fish.key}`, fish);
-    });
-    this.buildFishTexture(`fish-${OCTOPUS_BONUS.key}`, OCTOPUS_BONUS);
+  update() {
+    if (this.jobIndex >= this.jobs.length) return;
 
-    // Sounds are synthesised the same way the textures are drawn — from code,
-    // at boot. Cheap enough to do inline; there is nothing to download.
-    initAudio(this);
+    this.jobs[this.jobIndex]();
+    this.jobIndex += 1;
+    setBootProgress(this.jobIndex / this.jobs.length);
 
+    if (this.jobIndex < this.jobs.length) return;
+
+    hideBootSplash();
     // First run goes straight into the tutorial; the menu means little before
     // you know what the game asks of you.
     this.scene.start(isTutorialDone() ? 'MainMenu' : 'Tutorial');

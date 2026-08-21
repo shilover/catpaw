@@ -12,8 +12,10 @@
 
 // --- building blocks ------------------------------------------------------
 
-function render(ctx, seconds, fill) {
-  const rate = ctx.sampleRate;
+// `rate` may be lower than the context's own; the browser resamples on
+// playback. That matters for the music bed, which is eight seconds long and was
+// costing more to synthesise than everything else put together.
+function render(ctx, seconds, fill, rate = ctx.sampleRate) {
   const length = Math.max(1, Math.floor(seconds * rate));
   const buffer = ctx.createBuffer(1, length, rate);
   const data = buffer.getChannelData(0);
@@ -148,6 +150,10 @@ function makeComboBreak(ctx) {
 // Looping underwater music bed: a slow chord pad with a drifting filter, sized
 // so the loop point lands on a whole number of cycles for every partial and
 // therefore does not click when it wraps.
+// A slow chord pad has nothing above a few hundred Hz, so rendering it at CD
+// rate is wasted work — this is a quarter of the samples for no audible loss.
+const MUSIC_SAMPLE_RATE = 11025;
+
 function makeMusic(ctx) {
   const seconds = 8;
   // A minor 9th spread over two octaves — 55 Hz base, all integer multiples of
@@ -166,7 +172,7 @@ function makeMusic(ctx) {
     });
     const shimmer = filter(rand()) * 0.05;
     return (sum * 0.7 + shimmer) * 0.42;
-  });
+  }, Math.min(MUSIC_SAMPLE_RATE, ctx.sampleRate));
 }
 
 // --- registry -------------------------------------------------------------
@@ -187,15 +193,20 @@ export const MUSIC_KEY = 'music-reef';
 export const COMBO_STEP_COUNT = COMBO_STEPS.length;
 export const comboKey = (index) => 'sfx-combo-' + Math.min(index, COMBO_STEPS.length - 1);
 
-// Renders every sound into `game.cache.audio`, where Phaser's WebAudioSound
-// looks them up by key. Safe to call more than once; it skips what already
-// exists. Returns the number of buffers rendered.
-export function buildAudio(scene) {
+function audioContextFor(scene) {
   const manager = scene.sound;
   const ctx = manager && manager.context;
   // NoAudioSoundManager (or a browser with Web Audio disabled) has no context;
   // the game has to stay playable without sound.
-  if (!ctx || typeof ctx.createBuffer !== 'function') return 0;
+  return ctx && typeof ctx.createBuffer === 'function' ? ctx : null;
+}
+
+// The effects: short, cheap, and needed the moment anything is tapped, so these
+// are rendered during boot. Safe to call more than once. Returns how many
+// buffers were built.
+export function buildSfx(scene) {
+  const ctx = audioContextFor(scene);
+  if (!ctx) return 0;
 
   const cache = scene.cache.audio;
   const factories = {
@@ -208,7 +219,6 @@ export function buildAudio(scene) {
     [SFX.STAGE]: makeStage,
     [SFX.BUTTON]: makeButton,
     [SFX.COMBO_BREAK]: makeComboBreak,
-    [MUSIC_KEY]: makeMusic,
   };
 
   let built = 0;
@@ -226,4 +236,20 @@ export function buildAudio(scene) {
   }
 
   return built;
+}
+
+// The music bed, kept out of the boot path: eight seconds of pad cost more to
+// synthesise than every effect combined, and nothing needs it until a menu is
+// already on screen.
+export function buildMusic(scene) {
+  const ctx = audioContextFor(scene);
+  if (!ctx) return false;
+  const cache = scene.cache.audio;
+  if (cache.exists(MUSIC_KEY)) return true;
+  cache.add(MUSIC_KEY, makeMusic(ctx));
+  return true;
+}
+
+export function hasMusic(scene) {
+  return !!(scene.cache && scene.cache.audio && scene.cache.audio.exists(MUSIC_KEY));
 }

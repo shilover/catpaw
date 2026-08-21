@@ -16,6 +16,7 @@ const DAILY_KEY = 'tinyfish.daily';
 const CUT_GUIDE_KEY = 'tinyfish.cutGuide';
 const TUTORIAL_KEY = 'tinyfish.tutorialDone';
 const LEVEL_STARS_KEY = 'tinyfish.levelStars';
+const SURVIVAL_KEY = 'tinyfish.survivalBest';
 const MAX_SCORE_LIST = 10;
 
 function readRaw(key) {
@@ -218,4 +219,24 @@ export function saveLevelStars(levelId, stars) {
 
 export function getTotalStars() {
   return Object.values(getLevelStars()).reduce((sum, n) => sum + (Number(n) || 0), 0);
+}
+
+// --- survival -------------------------------------------------------------
+// Its own record, kept as score plus how long the run lasted: in a mode with
+// lives, "how long did you hold on" is at least as interesting as the points.
+
+export function getSurvivalBest() {
+  try {
+    const parsed = JSON.parse(readRaw(SURVIVAL_KEY) || '{}');
+    return { score: Number(parsed.score) || 0, seconds: Number(parsed.seconds) || 0 };
+  } catch {
+    return { score: 0, seconds: 0 };
+  }
+}
+
+export function saveSurvivalBest(score, seconds) {
+  const best = getSurvivalBest();
+  if (score <= best.score) return false;
+  writeRaw(SURVIVAL_KEY, JSON.stringify({ score, seconds }));
+  return true;
 }

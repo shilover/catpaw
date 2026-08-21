@@ -39,6 +39,16 @@ export default class ArcModeScene extends Phaser.Scene {
     return {};
   }
 
+  // Extra lane callbacks; Survival uses this to hear about misses.
+  get laneCallbacks() {
+    return {};
+  }
+
+  // Survival has no clock, so it opts out of the round timer entirely.
+  get hasRoundTimer() {
+    return true;
+  }
+
   create() {
     this.scale.setGameSize(LANDSCAPE_W, LANDSCAPE_H);
     this.w = this.scale.width;
@@ -67,6 +77,7 @@ export default class ArcModeScene extends Phaser.Scene {
       fishScaleMultiplier: this.laneRules.fishScale || 1,
       camera: this.cameras.main,
       impact: this.impact,
+      ...this.laneCallbacks,
     });
     this.lane.start();
 
@@ -88,7 +99,11 @@ export default class ArcModeScene extends Phaser.Scene {
     this.input.on('pointerup', (p) => this.lane.handlePointerUp(p));
     this.input.on('pointerupoutside', (p) => this.lane.handlePointerUp(p));
 
-    this.roundTimerEvent = this.time.addEvent({ delay: 1000, loop: true, callback: this.tickRound, callbackScope: this });
+    if (this.hasRoundTimer) {
+      this.roundTimerEvent = this.time.addEvent({
+        delay: 1000, loop: true, callback: this.tickRound, callbackScope: this,
+      });
+    }
 
     this.events.once('shutdown', () => {
       // Releases the hit-stop too, so the shared physics world is never left
