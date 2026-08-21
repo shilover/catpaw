@@ -2,6 +2,9 @@ import { TARGET_PERCENT_STEP } from '../data/fishData.js';
 import GameplayLane from '../objects/GameplayLane.js';
 import SplitScreenSceneBase from './SplitScreenSceneBase.js';
 import { SPLIT_FISH_SCALE, SPLIT_Y, FONT_FAMILY } from '../data/displayConfig.js';
+
+// A perfect cut only blacks out the opponent once the cutter is on a streak.
+const BLACKOUT_COMBO = 3;
 import { t } from '../i18n/index.js';
 
 // Versus: same top/bottom split-screen setup as Co-op, but each half spawns its
@@ -17,12 +20,12 @@ export default class VersusModeScene extends SplitScreenSceneBase {
     this.laneA = new GameplayLane(this, {
       ...regionA, laneId: 'vs-a', fishScaleMultiplier: SPLIT_FISH_SCALE,
       camera: this.cameras.main, impact: this.impact,
-      onCutResolved: (result) => this.onLaneResolved(this.laneB, result),
+      onCutResolved: (result) => this.onLaneResolved(this.laneA, this.laneB, result),
     });
     this.laneB = new GameplayLane(this, {
       ...regionB, laneId: 'vs-b', fishScaleMultiplier: SPLIT_FISH_SCALE,
       camera: this.camB, impact: this.impact,
-      onCutResolved: (result) => this.onLaneResolved(this.laneA, result),
+      onCutResolved: (result) => this.onLaneResolved(this.laneB, this.laneA, result),
     });
   }
 
@@ -43,10 +46,20 @@ export default class VersusModeScene extends SplitScreenSceneBase {
     this.laneB.start();
   }
 
-  onLaneResolved(opponent, result) {
+  // Three obstructions, each attacking something different, and earned in
+  // ascending order of difficulty:
+  //   near miss  -> wobble  (attacks the target's stability)
+  //   perfect    -> ink     (attacks vision)
+  //   perfect on -> blackout(attacks information)
+  //   a streak
+  // Tiering the strongest one behind a streak also gives the combo system
+  // something to do in Versus, where chasing points alone never mattered much.
+  onLaneResolved(cutter, opponent, result) {
     if (this.roundOver) return;
+
     if (result.isPerfect) {
       opponent.applyInkObstruction(2000);
+      if (cutter.combo >= BLACKOUT_COMBO) opponent.applyTargetBlackout();
     } else if (result.diff === TARGET_PERCENT_STEP) {
       opponent.applyFishWobble(1800);
     }

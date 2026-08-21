@@ -47,6 +47,7 @@ export default {
   cutResult: '{percent}%（目标 {target}%）  +{points}',
   missed: '漏掉了！',
   inked: '被泼墨了！',
+  blacked: '目标被隐藏！',
   wobbled: '被晃动了！',
   playerOne: '一号',
   playerTwo: '二号',

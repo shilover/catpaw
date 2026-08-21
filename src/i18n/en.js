@@ -48,6 +48,7 @@ export default {
   cutResult: '{percent}% (target {target}%)  +{points}',
   missed: 'Missed!',
   inked: 'INKED!',
+  blacked: 'TARGET HIDDEN!',
   wobbled: 'Wobbled!',
   playerOne: 'P1',
   playerTwo: 'P2',
