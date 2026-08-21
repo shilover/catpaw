@@ -68,6 +68,7 @@ tinyfishphaser/
 │   ├── scenes/            ← 一个场景一个文件，PascalCase
 │   │   ├── SplitScreenSceneBase.js  ← Co-op / Versus 的公共基类（见下文"分屏"）
 │   │   ├── DailyChallengeScene.js   ← 继承 ArcModeScene，只换成种子随机源
+│   │   ├── SurvivalScene.js         ← 继承 ArcModeScene，三条命、无时限、难度无上限
 │   │   ├── TutorialScene.js         ← 首次进入的分步引导（跑真实 GameplayLane）
 │   │   ├── LevelSelectScene.js      ← 七关选关 + 星级
 │   │   └── LevelScene.js            ← 继承 ArcModeScene，套用关卡规则
@@ -82,7 +83,8 @@ tinyfishphaser/
 │   │                          impact（打击感）/ cutGuide（理想切线教学）
 │   └── utils/             ← polygonCut（纯几何）/ pieceTexture（碎片烘焙）/
 │                              paper（纸感后处理）/ share（分享降级链）/
-│                              random（种子随机）/ storage（存档）/ format（mm:ss）
+│                              random（种子随机）/ bootSplash（加载遮罩）/
+│                              storage（存档）/ format（mm:ss）
 tests/                     ← Node 内置 test runner，只覆盖零 Phaser 依赖的纯逻辑
 .github/workflows/ci.yml   ← 每次 push / PR 跑 npm test + npm run build（不含部署）
 ```
@@ -158,6 +160,21 @@ buffer 的），因此播放走 `this.sound`，自动继承 Phaser 的静音/音
 **按内容自动算高度**，不要再传写死的 `panelHeight`：正文先测量，按钮从底部往上堆，关闭按钮永远
 是最后一行。之前手挑高度的版本在加了两个控件后立刻把它们埋到了关闭按钮下面。中英文正文长度差异
 明显，靠猜必然出事。
+
+### 启动路径（`BootScene` + `index.html` 的加载遮罩）
+
+游戏所有素材都是启动时现生成的，**在中端手机上这是以秒计的**（实测 4× 降频下从导航到可玩 2.35 秒）。
+因此：
+
+- **加载遮罩写在 `index.html` 的标签里**，在任何 JS 执行之前就会绘制。别把它挪进 JS。
+- **`BootScene` 每帧只做一件生成工作**（`update()` 里逐个跑 `jobs`），这样遮罩能保持动画并显示
+  **真实进度**。新增贴图/音频生成，就往 `jobs` 数组里加一项，**不要塞回 `create()`**。
+- **音乐床不在启动路径上**：8 秒 pad 是全场最贵的一次生成，由 `startMusic()` 在场景起来 120ms
+  后按需合成，并且以 11025Hz 渲染（慢速铺底音没有高频，浏览器会重采样）。
+- `paperize()` 的压边距离图**只在 `edgeShade > 0` 时才算**——全屏背景只要颗粒，之前那趟扫描是
+  乘以 0 的纯浪费。
+- ⚠️ **`game.isRunning` 为真 ≠ 可玩**：此时 BootScene 可能还在逐帧生成、遮罩还盖着画布。
+  自动化测试要等 `!document.getElementById('boot-splash')`，那才是真正的就绪信号。
 
 ### 打击感（`src/ui/impact.js`）
 
@@ -274,6 +291,15 @@ DynamicTexture，世界坐标下的遮罩 Graphics 会落到画面外、碎片�
 - 新场景要显式 import 并加进 `src/main.js` 的 `scene: [...]` 数组。
 - **每个进入游戏的场景都要自己 `this.scale.setGameSize(...)`** —— 单人是横屏、双人是竖屏，画布尺寸
   是全局的，谁进来谁负责设成自己要的尺寸，否则会继承上一个场景的画布。
+
+### 合作模式是"两人各切各的"，不是"一人切两人算"
+
+⚠️ Co-op 曾经的做法是：谁先切，就把结果**复制**给另一半（`resolveWithPercent`）。这意味着
+**第二个玩家的技术完全不影响任何事**——他只是坐在旁边看别人单机。现在两边各自计分，两刀落进
+同一个 5% 分档才给"默契奖励"。**不要退回复制结果的做法**，那不是合作。
+
+因此团队总分是 `laneA.score + laneB.score` 的**直接相加**（复制结果的年代这样加会把每一分都
+算两遍，所以当时用的是 `bonusScore` 拆分）。
 
 ### 分屏（Co-op / Versus）
 

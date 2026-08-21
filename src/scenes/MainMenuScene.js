@@ -69,25 +69,26 @@ export default class MainMenuScene extends Phaser.Scene {
     // layout than a stacked portrait column.
     const buttonY = h * 0.62;
     const modes = [
-      { x: -390, key: 'arcMode', tag: 'arcTagline', color: 0xff8a3d, scene: 'ArcMode' },
+      { x: -480, key: 'arcMode', tag: 'arcTagline', color: 0xff8a3d, scene: 'ArcMode' },
+      { x: -240, key: 'survivalMode', tag: 'survivalTagline', color: 0xe0524a, scene: 'Survival' },
       {
-        x: -130,
+        x: 0,
         key: 'dailyMode',
         // The day's best replaces the generic tagline once there is one to show.
         tag: 'dailyTagline',
         color: 0xffb020,
         scene: 'DailyChallenge',
       },
-      { x: 130, key: 'coopMode', tag: 'coopTagline', color: 0x2fbf71, scene: 'CoopMode' },
-      { x: 390, key: 'versusMode', tag: 'versusTagline', color: 0xff5a5a, scene: 'VersusMode' },
+      { x: 240, key: 'coopMode', tag: 'coopTagline', color: 0x2fbf71, scene: 'CoopMode' },
+      { x: 480, key: 'versusMode', tag: 'versusTagline', color: 0xff5a5a, scene: 'VersusMode' },
     ];
 
     const todaysBest = getDailyRecord(dailyKey()).best;
     modes.forEach((mode) => {
       const x = w / 2 + mode.x;
-      createButton(this, x, buttonY, 240, 84, t(mode.key), {
+      createButton(this, x, buttonY, 222, 84, t(mode.key), {
         color: mode.color,
-        fontSize: 24,
+        fontSize: 21,
       }).on('pointerup', () => this.goTo(mode.scene));
 
       const subtitle = mode.scene === 'DailyChallenge' && todaysBest > 0
@@ -95,7 +96,7 @@ export default class MainMenuScene extends Phaser.Scene {
         : t(mode.tag);
       this.add.text(x, buttonY + 56, subtitle, {
         fontFamily: FONT_FAMILY, fontSize: '13px', color: '#cccccc',
-        align: 'center', wordWrap: { width: 250 },
+        align: 'center', wordWrap: { width: 232 },
       }).setOrigin(0.5);
     });
 
@@ -114,10 +115,10 @@ export default class MainMenuScene extends Phaser.Scene {
     // Decorative fish filling the wide margins either side of the menu. Scales
     // are in design units; the fish textures are supersampled, so divide.
     const deco = (v) => v / FISH_SUPERSAMPLE;
-    this.add.image(w * 0.045, h * 0.50, 'fish-clown').setScale(deco(0.62)).setFlipX(true).setAlpha(0.8);
-    this.add.image(w * 0.955, h * 0.50, 'fish-octopus').setScale(deco(0.55)).setAlpha(0.8);
-    this.add.image(w * 0.06, h * 0.80, 'fish-cute').setScale(deco(0.5)).setAlpha(0.75);
-    this.add.image(w * 0.94, h * 0.80, 'fish-clown').setScale(deco(0.45)).setFlipX(true).setAlpha(0.75);
+    this.add.image(w * 0.035, h * 0.30, 'fish-clown').setScale(deco(0.62)).setFlipX(true).setAlpha(0.8);
+    this.add.image(w * 0.965, h * 0.30, 'fish-octopus').setScale(deco(0.55)).setAlpha(0.8);
+    this.add.image(w * 0.035, h * 0.80, 'fish-cute').setScale(deco(0.5)).setAlpha(0.75);
+    this.add.image(w * 0.965, h * 0.80, 'fish-clown').setScale(deco(0.45)).setFlipX(true).setAlpha(0.75);
   }
 
   goTo(sceneKey) {

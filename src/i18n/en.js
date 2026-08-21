@@ -106,6 +106,16 @@ export default {
   tut_done_title: 'That is the whole game',
   tut_done_body: 'Everything else is practice. Good luck out there.',
 
+  // Survival + co-op teamwork
+  survivalMode: 'SURVIVAL',
+  survivalTagline: 'Three lives, no clock',
+  livesLeft: 'Lives {hearts}',
+  survivalResult: 'SURVIVAL',
+  survivalBest: 'Best: {score} ({time})',
+  newSurvivalBest: '★ NEW SURVIVAL BEST ★',
+  survivedFor: 'Survived {time}',
+  syncBonus: 'IN SYNC!',
+
   // Levels
   levels: 'Levels',
   levelsTagline: 'Seven skills, one each',

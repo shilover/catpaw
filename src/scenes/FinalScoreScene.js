@@ -4,10 +4,11 @@ import { addUnderwaterBackground, addBubbles } from '../ui/backgroundEffects.js'
 import {
   getHighScore, saveHighScore, getCoopHighScore, saveCoopHighScore, pushScoreListEntry,
   getLifetimeStats, saveLifetimeStats, getUnlockedAchievements, saveUnlockedAchievements,
-  getDailyRecord, saveDailyRecord, saveLevelStars,
+  getDailyRecord, saveDailyRecord, saveLevelStars, getSurvivalBest, saveSurvivalBest,
 } from '../utils/storage.js';
 import { getLevel } from '../data/levels.js';
 import { dailyKey } from '../utils/random.js';
+import { formatClock } from '../utils/format.js';
 import { mergeLifetime, evaluateAchievements } from '../data/achievements.js';
 import { shareResult } from '../utils/share.js';
 import { LANDSCAPE_W, LANDSCAPE_H, FONT_FAMILY } from '../data/displayConfig.js';
@@ -38,6 +39,7 @@ export default class FinalScoreScene extends Phaser.Scene {
     this.reachedStage = data.reachedStage || 0;
     this.levelId = data.levelId || null;
     this.levelStars = data.stars || 0;
+    this.survivedSeconds = data.survivedSeconds || 0;
   }
 
   create() {
@@ -58,6 +60,7 @@ export default class FinalScoreScene extends Phaser.Scene {
 
     if (this.mode === 'versus') this.buildVersus(w, h);
     else if (this.mode === 'level') this.buildLevel(w, h);
+    else if (this.mode === 'survival') this.buildSurvival(w, h);
     else this.buildSoloOrCoop(w, h);
 
     this.buildShareButton(w, h);
@@ -259,6 +262,47 @@ export default class FinalScoreScene extends Phaser.Scene {
       if (canAdvance) this.scene.start('Level', { levelId: this.levelId + 1 });
       else this.scene.start('LevelSelect');
     });
+  }
+
+  buildSurvival(w, h) {
+    const previous = getSurvivalBest();
+    const improved = saveSurvivalBest(this.finalScore, this.survivedSeconds);
+    pushScoreListEntry(this.finalScore, 'survival');
+
+    this.add.text(w / 2, 68, t('survivalResult'), {
+      fontFamily: FONT_FAMILY, fontSize: '28px', fontStyle: 'bold', color: '#bfe9ff',
+    }).setOrigin(0.5);
+
+    this.add.text(w / 2, 126, String(this.finalScore), {
+      fontFamily: FONT_FAMILY, fontSize: '58px', fontStyle: 'bold', color: '#ffe38a',
+      stroke: '#0a2a4a', strokeThickness: 6,
+    }).setOrigin(0.5);
+
+    // How long they lasted is the headline number in a mode with lives.
+    this.add.text(w / 2, 172, t('survivedFor', { time: formatClock(this.survivedSeconds) }), {
+      fontFamily: FONT_FAMILY, fontSize: '20px', fontStyle: 'bold', color: '#8affc1',
+    }).setOrigin(0.5);
+
+    if (improved) {
+      const badge = this.add.text(w / 2, 204, t('newSurvivalBest'), {
+        fontFamily: FONT_FAMILY, fontSize: '17px', fontStyle: 'bold', color: '#ffd23f',
+      }).setOrigin(0.5);
+      this.tweens.add({ targets: badge, scale: 1.14, duration: 500, yoyo: true, repeat: -1 });
+    } else {
+      this.add.text(w / 2, 204, t('survivalBest', {
+        score: Math.max(previous.score, this.finalScore),
+        time: formatClock(Math.max(previous.seconds, this.survivedSeconds)),
+      }), {
+        fontFamily: FONT_FAMILY, fontSize: '15px', color: '#dff2ff',
+      }).setOrigin(0.5);
+    }
+
+    this.buildBreakdown(w / 2, 232, this.stats);
+
+    createButton(this, w / 2, h - 120, 240, 62, t('replay'), { color: 0xff8a3d, fontSize: 26 })
+      .on('pointerup', () => this.scene.start('Survival'));
+    createButton(this, w / 2, h - 50, 240, 56, t('mainMenu'), { color: 0x8a5cff, fontSize: 20 })
+      .on('pointerup', () => this.scene.start('MainMenu'));
   }
 
   buildVersus(w, h) {

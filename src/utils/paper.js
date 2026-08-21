@@ -115,9 +115,17 @@ export function paperize(target, options = {}) {
   }
 
   // 2. Grain and pressed edge over whatever is still opaque.
-  const alphaAfter = new Uint8Array(w * h);
-  for (let i = 0; i < alphaAfter.length; i++) alphaAfter[i] = data[i * 4 + 3];
-  const rim = edgeDistance(alphaAfter, w, h, 4);
+  //
+  // The rim map costs four min-plus sweeps over every pixel, so it is only
+  // worth building when something actually shades the rim. The full-screen
+  // background asks for grain alone, and on a 1280x720 sheet that was ~7.4M
+  // wasted iterations multiplied by an edgeShade of zero.
+  let rim = null;
+  if (edgeShade > 0) {
+    const alphaAfter = new Uint8Array(w * h);
+    for (let i = 0; i < alphaAfter.length; i++) alphaAfter[i] = data[i * 4 + 3];
+    rim = edgeDistance(alphaAfter, w, h, 4);
+  }
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -131,8 +139,10 @@ export function paperize(target, options = {}) {
       let factor = 1 + fibre * grain + blotch * grain * 0.9;
 
       // The cut rim of a sheet catches less light than its face.
-      const d = rim[i];
-      if (d > 0 && d <= 3) factor *= 1 - edgeShade * (1 - (d - 1) / 3);
+      if (rim) {
+        const d = rim[i];
+        if (d > 0 && d <= 3) factor *= 1 - edgeShade * (1 - (d - 1) / 3);
+      }
 
       data[p] = Math.max(0, Math.min(255, data[p] * factor));
       data[p + 1] = Math.max(0, Math.min(255, data[p + 1] * factor));

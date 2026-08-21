@@ -1,4 +1,4 @@
-import { SFX, MUSIC_KEY, comboKey, buildAudio } from './synth.js';
+import { SFX, MUSIC_KEY, comboKey, buildSfx, buildMusic, hasMusic } from './synth.js';
 import { isMusicEnabled, isSfxEnabled } from '../utils/storage.js';
 
 export { SFX, comboKey };
@@ -16,7 +16,7 @@ function canPlay(scene) {
 }
 
 export function initAudio(scene) {
-  return buildAudio(scene);
+  return buildSfx(scene);
 }
 
 // Shortest gap between two plays of the same sound. Some triggers legitimately
@@ -45,7 +45,23 @@ export function playCombo(scene, comboIndex) {
 // Music is owned by the Sound Manager rather than a scene, so it survives scene
 // changes instead of restarting on every screen.
 export function startMusic(scene) {
-  if (!canPlay(scene) || !scene.cache.audio.exists(MUSIC_KEY)) return;
+  if (!canPlay(scene)) return;
+
+  // The bed is synthesised the first time a scene asks for it, and deliberately
+  // a beat late: eight seconds of pad is the most expensive thing the game
+  // generates, and doing it inline would stall the very first frame of the menu
+  // behind it. Ambient music starting a fraction of a second in is nobody's
+  // problem; a blank screen is.
+  if (!hasMusic(scene)) {
+    if (!scene.__musicPending) {
+      scene.__musicPending = true;
+      scene.time.delayedCall(120, () => {
+        scene.__musicPending = false;
+        if (buildMusic(scene)) startMusic(scene);
+      });
+    }
+    return;
+  }
 
   if (!musicSound || !scene.sound.get(MUSIC_KEY)) {
     musicSound = scene.sound.add(MUSIC_KEY, { loop: true, volume: 0.34 });

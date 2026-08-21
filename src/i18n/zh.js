@@ -105,6 +105,16 @@ export default {
   tut_done_title: '这就是全部玩法了',
   tut_done_body: '剩下的都是熟练度。祝你好运。',
 
+  // Survival + co-op teamwork
+  survivalMode: '生存模式',
+  survivalTagline: '三条命，不限时',
+  livesLeft: '生命 {hearts}',
+  survivalResult: '生存模式',
+  survivalBest: '最佳：{score}（{time}）',
+  newSurvivalBest: '★ 生存新纪录 ★',
+  survivedFor: '坚持了 {time}',
+  syncBonus: '默契！',
+
   // Levels
   levels: '关卡',
   levelsTagline: '七种技能，一关一种',
