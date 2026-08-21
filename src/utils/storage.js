@@ -12,6 +12,7 @@ const SFX_KEY = 'tinyfish.sfxEnabled';
 const LANG_KEY = 'tinyfish.lang';
 const LIFETIME_KEY = 'tinyfish.lifetime';
 const ACHIEVEMENTS_KEY = 'tinyfish.achievements';
+const DAILY_KEY = 'tinyfish.daily';
 const MAX_SCORE_LIST = 10;
 
 function readRaw(key) {
@@ -137,4 +138,30 @@ export function getUnlockedAchievements() {
 
 export function saveUnlockedAchievements(ids) {
   writeRaw(ACHIEVEMENTS_KEY, JSON.stringify(ids));
+}
+
+// --- daily challenge ------------------------------------------------------
+// Only today's record is kept: the challenge resets at midnight and yesterday's
+// number is not something the player can act on any more.
+
+export function getDailyRecord(dateKey) {
+  try {
+    const parsed = JSON.parse(readRaw(DAILY_KEY) || '{}');
+    if (!parsed || parsed.date !== dateKey) return { date: dateKey, best: 0, plays: 0 };
+    return { date: dateKey, best: Number(parsed.best) || 0, plays: Number(parsed.plays) || 0 };
+  } catch {
+    return { date: dateKey, best: 0, plays: 0 };
+  }
+}
+
+// Returns true when this run beat the day's previous best.
+export function saveDailyRecord(dateKey, score) {
+  const current = getDailyRecord(dateKey);
+  const improved = score > current.best;
+  writeRaw(DAILY_KEY, JSON.stringify({
+    date: dateKey,
+    best: improved ? score : current.best,
+    plays: current.plays + 1,
+  }));
+  return improved;
 }

@@ -3,6 +3,7 @@ import { TARGET_PERCENT_OPTIONS, pickWeightedFish } from '../data/fishData.js';
 import GameplayLane from '../objects/GameplayLane.js';
 import SplitScreenSceneBase from './SplitScreenSceneBase.js';
 import { SPLIT_FISH_SCALE } from '../data/displayConfig.js';
+import { COOP_ADVANCE_MS, COOP_MISS_ADVANCE_MS } from '../data/fishData.js';
 
 // Co-op: the screen splits top/bottom, one player per half, facing each other
 // across a shared device. Both halves always show the SAME fish/target —
@@ -21,12 +22,14 @@ export default class CoopModeScene extends SplitScreenSceneBase {
     // auto-spawning its own random fish.
     this.laneA = new GameplayLane(this, {
       ...regionA, laneId: 'coop-a', fishScaleMultiplier: SPLIT_FISH_SCALE,
+      camera: this.cameras.main, impact: this.impact,
       onCutResolved: (result) => this.onEitherResolved('A', result),
       onMissed: () => this.onEitherMissed('A'),
       onRoundAdvance: () => {},
     });
     this.laneB = new GameplayLane(this, {
       ...regionB, laneId: 'coop-b', fishScaleMultiplier: SPLIT_FISH_SCALE,
+      camera: this.camB, impact: this.impact,
       onCutResolved: (result) => this.onEitherResolved('B', result),
       onMissed: () => this.onEitherMissed('B'),
       onRoundAdvance: () => {},
@@ -53,7 +56,7 @@ export default class CoopModeScene extends SplitScreenSceneBase {
     const other = who === 'A' ? this.laneB : this.laneA;
     other.resolveWithPercent(result.rawPercent);
 
-    this.time.delayedCall(900, () => {
+    this.time.delayedCall(COOP_ADVANCE_MS, () => {
       if (this.roundOver) return;
       this.spawnSharedFish();
     });
@@ -68,7 +71,7 @@ export default class CoopModeScene extends SplitScreenSceneBase {
     const other = who === 'A' ? this.laneB : this.laneA;
     if (other.currentFish) other.onFishTimeout();
 
-    this.time.delayedCall(700, () => {
+    this.time.delayedCall(COOP_MISS_ADVANCE_MS, () => {
       if (this.roundOver) return;
       this.spawnSharedFish();
     });

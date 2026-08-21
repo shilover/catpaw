@@ -6,14 +6,27 @@ import { createButton } from '../ui/createButton.js';
 import { LANDSCAPE_W, LANDSCAPE_H, HEADER_HEIGHT, FONT_FAMILY } from '../data/displayConfig.js';
 import { formatClock } from '../utils/format.js';
 import { startMusic, playSfx, SFX } from '../audio/audio.js';
+import ImpactFx from '../ui/impact.js';
 
 // Solo Arc Mode: one fish at a time, a per-fish countdown, swipe to slice it,
 // and score based on how close the cut ratio lands to a random target shown on
 // the accuracy bar. Difficulty ramps up over the round (see
 // fishData.DIFFICULTY_STAGES). Runs until the overall level timer expires.
 export default class ArcModeScene extends Phaser.Scene {
-  constructor() {
-    super('ArcMode');
+  // Subclassed by the Daily Challenge, which is the same round driven by a
+  // seeded random source.
+  constructor(key = 'ArcMode') {
+    super(key);
+    this.sceneKey = key;
+  }
+
+  // Overridden by the Daily Challenge.
+  get resultMode() {
+    return 'solo';
+  }
+
+  createLaneRandom() {
+    return Math.random;
   }
 
   create() {
@@ -34,9 +47,14 @@ export default class ArcModeScene extends Phaser.Scene {
     headerBg.fillStyle(0x00121f, 0.45);
     headerBg.fillRect(0, 0, this.w, HEADER_HEIGHT);
 
+    this.impact = new ImpactFx(this);
+
     this.lane = new GameplayLane(this, {
       x: 0, y: HEADER_HEIGHT, width: this.w, height: this.h - HEADER_HEIGHT,
       laneId: 'solo',
+      random: this.createLaneRandom(),
+      camera: this.cameras.main,
+      impact: this.impact,
     });
     this.lane.start();
 
@@ -60,10 +78,16 @@ export default class ArcModeScene extends Phaser.Scene {
 
     this.roundTimerEvent = this.time.addEvent({ delay: 1000, loop: true, callback: this.tickRound, callbackScope: this });
 
-    this.events.once('shutdown', () => this.lane.destroy());
+    this.events.once('shutdown', () => {
+      // Releases the hit-stop too, so the shared physics world is never left
+      // paused behind us.
+      this.impact.destroy();
+      this.lane.destroy();
+    });
   }
 
   update(time, delta) {
+    this.impact.update(delta);
     this.lane.update(time, delta);
   }
 
@@ -95,7 +119,7 @@ export default class ArcModeScene extends Phaser.Scene {
 
     this.time.delayedCall(400, () => {
       this.scene.start('FinalScore', {
-        mode: 'solo',
+        mode: this.resultMode,
         score: this.lane.score,
         stats: this.lane.stats,
         reachedStage: this.lane.stage.minElapsed,
@@ -106,6 +130,6 @@ export default class ArcModeScene extends Phaser.Scene {
   openPause() {
     if (this.roundOver) return;
     this.scene.pause();
-    this.scene.launch('Pause', { parentKey: 'ArcMode' });
+    this.scene.launch('Pause', { parentKey: this.sceneKey });
   }
 }

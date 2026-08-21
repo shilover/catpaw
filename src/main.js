@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import BootScene from './scenes/BootScene.js';
 import MainMenuScene from './scenes/MainMenuScene.js';
 import ArcModeScene from './scenes/ArcModeScene.js';
+import DailyChallengeScene from './scenes/DailyChallengeScene.js';
 import PauseScene from './scenes/PauseScene.js';
 import FinalScoreScene from './scenes/FinalScoreScene.js';
 import CoopModeScene from './scenes/CoopModeScene.js';
@@ -37,7 +38,10 @@ const config = {
       debug: false,
     },
   },
-  scene: [BootScene, MainMenuScene, ArcModeScene, CoopModeScene, VersusModeScene, PauseScene, FinalScoreScene],
+  scene: [
+    BootScene, MainMenuScene, ArcModeScene, DailyChallengeScene,
+    CoopModeScene, VersusModeScene, PauseScene, FinalScoreScene,
+  ],
 };
 
 const game = new Phaser.Game(config);

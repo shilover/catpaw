@@ -104,6 +104,28 @@ for (let p = TARGET_PERCENT_MIN; p <= TARGET_PERCENT_MAX; p += TARGET_PERCENT_ST
 export const FISH_CUT_TIME_LIMIT = 5; // seconds to slice each fish
 export const ROUND_TIME_LIMIT = 60; // overall level time limit, seconds
 
+// --- Pacing ---------------------------------------------------------------
+// How long the game sits still between one fish being resolved and the next
+// appearing. This used to total a full second (700ms + 300ms), which at roughly
+// twenty fish a round meant a third of the round was spent waiting. The result
+// popup now overlaps the next fish instead of queueing behind it.
+export const CUT_SETTLE_MS = 260;
+export const NEXT_FISH_DELAY_MS = 140;
+// Co-op resolves both halves off one cut, so it holds fractionally longer to let
+// the shared result register on both sides.
+export const COOP_ADVANCE_MS = 420;
+export const COOP_MISS_ADVANCE_MS = 460;
+
+// --- Impact ---------------------------------------------------------------
+// A perfect cut is the moment the whole game is built around, so it gets a beat
+// of frozen time and a camera kick. Ordinary cuts get neither — if everything
+// punches, nothing does.
+export const PERFECT_HIT_STOP_MS = 55;
+export const PERFECT_SHAKE_MS = 90;
+export const PERFECT_SHAKE_INTENSITY = 0.005;
+export const CUT_SCRAP_COUNT = 9;
+export const PERFECT_SCRAP_COUNT = 16;
+
 export function snapToGrid(value, step = TARGET_PERCENT_STEP) {
   return Math.round(value / step) * step;
 }
@@ -125,9 +147,9 @@ export function getFishType(key) {
 // Stage is picked from elapsed seconds into the round.
 export const DIFFICULTY_STAGES = [
   { minElapsed: 0, labelKey: 'stageCalm', windAmplitude: 0, windSpeed: 0, cutTimeLimit: 5.0, bandColor: 0x2fbf71 },
-  { minElapsed: 18, labelKey: 'stageLight', windAmplitude: 26, windSpeed: 1.6, cutTimeLimit: 4.5, bandColor: 0x53c7ff },
-  { minElapsed: 36, labelKey: 'stageStrong', windAmplitude: 48, windSpeed: 2.4, cutTimeLimit: 4.0, bandColor: 0xffd23f },
-  { minElapsed: 52, labelKey: 'stageRiptide', windAmplitude: 74, windSpeed: 3.2, cutTimeLimit: 3.5, bandColor: 0xff5a5a },
+  { minElapsed: 14, labelKey: 'stageLight', windAmplitude: 26, windSpeed: 1.6, cutTimeLimit: 4.5, bandColor: 0x53c7ff },
+  { minElapsed: 30, labelKey: 'stageStrong', windAmplitude: 48, windSpeed: 2.4, cutTimeLimit: 4.0, bandColor: 0xffd23f },
+  { minElapsed: 45, labelKey: 'stageRiptide', windAmplitude: 74, windSpeed: 3.2, cutTimeLimit: 3.5, bandColor: 0xff5a5a },
 ];
 
 // --- Combo -----------------------------------------------------------------

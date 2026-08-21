@@ -4,7 +4,9 @@ import { addUnderwaterBackground, addBubbles } from '../ui/backgroundEffects.js'
 import {
   getHighScore, saveHighScore, getCoopHighScore, saveCoopHighScore, pushScoreListEntry,
   getLifetimeStats, saveLifetimeStats, getUnlockedAchievements, saveUnlockedAchievements,
+  getDailyRecord, saveDailyRecord,
 } from '../utils/storage.js';
+import { dailyKey } from '../utils/random.js';
 import { mergeLifetime, evaluateAchievements } from '../data/achievements.js';
 import { shareResult } from '../utils/share.js';
 import { LANDSCAPE_W, LANDSCAPE_H, FONT_FAMILY } from '../data/displayConfig.js';
@@ -121,6 +123,7 @@ export default class FinalScoreScene extends Phaser.Scene {
         score: this.finalScore,
         perfect: this.stats.perfectCount || 0,
         combo: this.stats.bestCombo || 0,
+        date: dailyKey(),
       };
     const outcome = await shareResult(this, payload);
     this.sharing = false;
@@ -143,13 +146,30 @@ export default class FinalScoreScene extends Phaser.Scene {
 
   buildSoloOrCoop(w, h) {
     const isCoop = this.mode === 'coop';
-    // Co-op totals are two players working a shared fish, so they get their own
-    // best rather than competing with (and permanently beating) solo runs.
-    const previousHigh = isCoop ? getCoopHighScore() : getHighScore();
-    const isNewHigh = isCoop ? saveCoopHighScore(this.finalScore) : saveHighScore(this.finalScore);
+    const isDaily = this.mode === 'daily';
+
+    // Three separate records, because they are three different challenges:
+    // solo is open-ended, co-op is two players on one fish, and the daily is a
+    // fixed set everyone gets. Pooling them would make two of the three
+    // unbeatable.
+    let previousHigh;
+    let isNewHigh;
+    if (isDaily) {
+      const today = dailyKey();
+      previousHigh = getDailyRecord(today).best;
+      isNewHigh = saveDailyRecord(today, this.finalScore);
+    } else if (isCoop) {
+      previousHigh = getCoopHighScore();
+      isNewHigh = saveCoopHighScore(this.finalScore);
+    } else {
+      previousHigh = getHighScore();
+      isNewHigh = saveHighScore(this.finalScore);
+    }
     pushScoreListEntry(this.finalScore, this.mode);
 
-    const title = isCoop ? t('teamResult') : t('roundOver');
+    let title = t('roundOver');
+    if (isCoop) title = t('teamResult');
+    else if (isDaily) title = t('dailyResult');
     this.add.text(w / 2, 70, title, {
       fontFamily: FONT_FAMILY, fontSize: '28px', fontStyle: 'bold', color: '#bfe9ff',
     }).setOrigin(0.5);
@@ -160,13 +180,18 @@ export default class FinalScoreScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     if (isNewHigh) {
-      const badge = this.add.text(w / 2, 178, isCoop ? t('newTeamBest') : t('newHighScore'), {
+      let badgeText = t('newHighScore');
+      if (isCoop) badgeText = t('newTeamBest');
+      else if (isDaily) badgeText = t('newDailyBest');
+      const badge = this.add.text(w / 2, 178, badgeText, {
         fontFamily: FONT_FAMILY, fontSize: '18px', fontStyle: 'bold', color: '#ffd23f',
       }).setOrigin(0.5);
       this.tweens.add({ targets: badge, scale: 1.15, duration: 500, yoyo: true, repeat: -1 });
     } else {
       const best = Math.max(previousHigh, this.finalScore);
-      const label = isCoop ? t('teamBest', { score: best }) : t('highScore', { score: best });
+      let label = t('highScore', { score: best });
+      if (isCoop) label = t('teamBest', { score: best });
+      else if (isDaily) label = t('dailyBest', { score: best });
       this.add.text(w / 2, 178, label, {
         fontFamily: FONT_FAMILY, fontSize: '15px', color: '#dff2ff',
       }).setOrigin(0.5);
@@ -174,7 +199,9 @@ export default class FinalScoreScene extends Phaser.Scene {
 
     this.buildBreakdown(w / 2, 220, this.stats);
 
-    const replayTarget = isCoop ? 'CoopMode' : 'ArcMode';
+    let replayTarget = 'ArcMode';
+    if (isCoop) replayTarget = 'CoopMode';
+    else if (isDaily) replayTarget = 'DailyChallenge';
     createButton(this, w / 2, h - 120, 240, 62, t('replay'), { color: 0xff8a3d, fontSize: 26 })
       .on('pointerup', () => this.scene.start(replayTarget));
 

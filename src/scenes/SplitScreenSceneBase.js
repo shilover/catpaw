@@ -5,6 +5,7 @@ import { createButton } from '../ui/createButton.js';
 import { PORTRAIT_W, PORTRAIT_H, SPLIT_Y, FONT_FAMILY } from '../data/displayConfig.js';
 import { formatClock } from '../utils/format.js';
 import { startMusic, playSfx, SFX } from '../audio/audio.js';
+import ImpactFx from '../ui/impact.js';
 
 const PAUSE_BTN_W = 44;
 const PAUSE_BTN_H = 30;
@@ -47,6 +48,8 @@ export default class SplitScreenSceneBase extends Phaser.Scene {
     startMusic(this);
 
     this.setupCameras(regionA, regionB);
+    // Shared by both lanes: one physics world means one freeze.
+    this.impact = new ImpactFx(this);
 
     // Subclass builds this.laneA / this.laneB.
     this.createLanes(regionA, regionB);
@@ -66,6 +69,7 @@ export default class SplitScreenSceneBase extends Phaser.Scene {
     this.roundTimerEvent = this.time.addEvent({ delay: 1000, loop: true, callback: this.tickRound, callbackScope: this });
 
     this.events.once('shutdown', () => {
+      this.impact.destroy();
       this.laneA.destroy();
       this.laneB.destroy();
     });
@@ -74,6 +78,7 @@ export default class SplitScreenSceneBase extends Phaser.Scene {
   }
 
   update(time, delta) {
+    this.impact.update(delta);
     this.laneA.update(time, delta);
     this.laneB.update(time, delta);
   }

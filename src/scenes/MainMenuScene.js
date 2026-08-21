@@ -9,7 +9,8 @@ import { LANDSCAPE_W, LANDSCAPE_H, FISH_SUPERSAMPLE, FONT_FAMILY } from '../data
 import { startMusic, syncMusic, playSfx, SFX } from '../audio/audio.js';
 import { t, nextLanguage, setLanguage, languageLabel } from '../i18n/index.js';
 import { ACHIEVEMENTS } from '../data/achievements.js';
-import { getLifetimeStats, getUnlockedAchievements } from '../utils/storage.js';
+import { getLifetimeStats, getUnlockedAchievements, getDailyRecord } from '../utils/storage.js';
+import { dailyKey } from '../utils/random.js';
 
 // Mirrors BPUI_MainMenu: background_main, title_00, button_arc / button_vs,
 // button_setting_music / button_setting_Contactme / button_setting_list.
@@ -59,46 +60,49 @@ export default class MainMenuScene extends Phaser.Scene {
       color: '#8affc1',
     }).setOrigin(0.5);
 
-    // Three side-by-side mode buttons — makes better use of the widescreen
+    // Four side-by-side mode buttons — makes better use of the widescreen
     // layout than a stacked portrait column.
     const buttonY = h * 0.58;
-    const arcX = w / 2 - 300;
-    const coopX = w / 2;
-    const vsX = w / 2 + 300;
+    const modes = [
+      { x: -390, key: 'arcMode', tag: 'arcTagline', color: 0xff8a3d, scene: 'ArcMode' },
+      {
+        x: -130,
+        key: 'dailyMode',
+        // The day's best replaces the generic tagline once there is one to show.
+        tag: 'dailyTagline',
+        color: 0xffb020,
+        scene: 'DailyChallenge',
+      },
+      { x: 130, key: 'coopMode', tag: 'coopTagline', color: 0x2fbf71, scene: 'CoopMode' },
+      { x: 390, key: 'versusMode', tag: 'versusTagline', color: 0xff5a5a, scene: 'VersusMode' },
+    ];
 
-    createButton(this, arcX, buttonY, 260, 84, t('arcMode'), {
-      color: 0xff8a3d,
-      fontSize: 28,
-    }).on('pointerup', () => this.goTo('ArcMode'));
-    this.add.text(arcX, buttonY + 56, t('arcTagline'), {
-      fontFamily: FONT_FAMILY, fontSize: '14px', color: '#cccccc',
-    }).setOrigin(0.5);
+    const todaysBest = getDailyRecord(dailyKey()).best;
+    modes.forEach((mode) => {
+      const x = w / 2 + mode.x;
+      createButton(this, x, buttonY, 240, 84, t(mode.key), {
+        color: mode.color,
+        fontSize: 24,
+      }).on('pointerup', () => this.goTo(mode.scene));
 
-    createButton(this, coopX, buttonY, 260, 84, t('coopMode'), {
-      color: 0x2fbf71,
-      fontSize: 28,
-    }).on('pointerup', () => this.goTo('CoopMode'));
-    this.add.text(coopX, buttonY + 56, t('coopTagline'), {
-      fontFamily: FONT_FAMILY, fontSize: '14px', color: '#cccccc',
-    }).setOrigin(0.5);
-
-    createButton(this, vsX, buttonY, 260, 84, t('versusMode'), {
-      color: 0xff5a5a,
-      fontSize: 28,
-    }).on('pointerup', () => this.goTo('VersusMode'));
-    this.add.text(vsX, buttonY + 56, t('versusTagline'), {
-      fontFamily: FONT_FAMILY, fontSize: '14px', color: '#cccccc',
-    }).setOrigin(0.5);
+      const subtitle = mode.scene === 'DailyChallenge' && todaysBest > 0
+        ? t('dailyBest', { score: todaysBest })
+        : t(mode.tag);
+      this.add.text(x, buttonY + 56, subtitle, {
+        fontFamily: FONT_FAMILY, fontSize: '13px', color: '#cccccc',
+        align: 'center', wordWrap: { width: 250 },
+      }).setOrigin(0.5);
+    });
 
     this.buildSettingsRow(w, h);
 
     // Decorative fish filling the wide margins either side of the menu. Scales
     // are in design units; the fish textures are supersampled, so divide.
     const deco = (v) => v / FISH_SUPERSAMPLE;
-    this.add.image(w * 0.09, h * 0.55, 'fish-clown').setScale(deco(0.7)).setFlipX(true).setAlpha(0.85);
-    this.add.image(w * 0.91, h * 0.55, 'fish-octopus').setScale(deco(0.6)).setAlpha(0.85);
-    this.add.image(w * 0.14, h * 0.82, 'fish-cute').setScale(deco(0.55)).setAlpha(0.8);
-    this.add.image(w * 0.86, h * 0.82, 'fish-clown').setScale(deco(0.5)).setFlipX(true).setAlpha(0.8);
+    this.add.image(w * 0.045, h * 0.50, 'fish-clown').setScale(deco(0.62)).setFlipX(true).setAlpha(0.8);
+    this.add.image(w * 0.955, h * 0.50, 'fish-octopus').setScale(deco(0.55)).setAlpha(0.8);
+    this.add.image(w * 0.06, h * 0.80, 'fish-cute').setScale(deco(0.5)).setAlpha(0.75);
+    this.add.image(w * 0.94, h * 0.80, 'fish-clown').setScale(deco(0.45)).setFlipX(true).setAlpha(0.75);
   }
 
   goTo(sceneKey) {

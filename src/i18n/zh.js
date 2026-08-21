@@ -83,6 +83,15 @@ export default {
   statOctopus: '章鱼',
   statBestCombo: '最高连击',
 
+  // Daily challenge
+  dailyMode: '每日挑战',
+  dailyTagline: '全球同一套鱼，仅限今天',
+  dailyBadge: '每日 {date}',
+  dailyBest: '今日最佳：{score}',
+  dailyResult: '每日挑战',
+  newDailyBest: '★ 今日新纪录 ★',
+  dailyBestLabel: '今日最佳',
+
   // Achievements
   achievements: '成就',
   achievementUnlocked: '解锁成就',
@@ -93,6 +102,7 @@ export default {
   shareFailed: '当前设备无法分享。',
   shareTitle: '小鱼一刀',
   shareBody: '我在《小鱼一刀》拿到了 {score} 分！\n完美切割：{perfect} 次 · 最高连击：{combo} 连',
+  shareBodyDaily: '《小鱼一刀》每日挑战 {date}：{score} 分！',
   shareBodyVersus: '《小鱼一刀》对战：一号 {scoreA} 比 二号 {scoreB}',
   ach_firstCut: '第一刀',
   ach_firstCut_desc: '切开第一条鱼。',

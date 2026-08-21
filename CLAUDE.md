@@ -65,7 +65,8 @@ tinyfishphaser/
 │   │   ├── fishData.js       ← 鱼种表（含价值/稀有度）、目标规则、评分公式、连击、难度分段
 │   │   └── achievements.js   ← 成就定义 + 生涯统计合并（纯函数，有单测）
 │   ├── scenes/            ← 一个场景一个文件，PascalCase
-│   │   └── SplitScreenSceneBase.js  ← Co-op / Versus 的公共基类（见下文"分屏"）
+│   │   ├── SplitScreenSceneBase.js  ← Co-op / Versus 的公共基类（见下文"分屏"）
+│   │   └── DailyChallengeScene.js   ← 继承 ArcModeScene，只换成种子随机源
 │   ├── objects/           ← 运行时实体：CuttableFish / BonusOctopus / GameplayLane
 │   ├── audio/
 │   │   ├── synth.js       ← 程序化合成全部音效与音乐（启动时渲染成 AudioBuffer）
@@ -73,10 +74,10 @@ tinyfishphaser/
 │   ├── i18n/
 │   │   ├── index.js       ← t() 查表 + 语言切换/持久化
 │   │   └── en.js / zh.js  ← 文案表
-│   ├── ui/                ← createButton / targetBar / backgroundEffects
+│   ├── ui/                ← createButton / targetBar / backgroundEffects / impact（打击感）
 │   └── utils/             ← polygonCut（纯几何）/ pieceTexture（碎片烘焙）/
 │                              paper（纸感后处理）/ share（分享降级链）/
-│                              storage（存档）/ format（mm:ss）
+│                              random（种子随机）/ storage（存档）/ format（mm:ss）
 tests/                     ← Node 内置 test runner，只覆盖零 Phaser 依赖的纯逻辑
 .github/workflows/ci.yml   ← 每次 push / PR 跑 npm test + npm run build（不含部署）
 ```
@@ -134,6 +135,30 @@ buffer 的），因此播放走 `this.sound`，自动继承 Phaser 的静音/音
 - ⚠️ `GameplayLane.js` 里 `t` 是翻译函数，**不要再用 `t` 当局部变量名**（插值系数、Text 对象
   之类），会静默遮蔽掉它。
 
+### 打击感（`src/ui/impact.js`）
+
+游戏的核心动词是"切"，所以那一瞬间要有物理反馈：每刀都甩纸屑，**完美切割**额外触发顿帧 + 震屏。
+
+- **顿帧靠暂停 arcade world + 在场景 `update` 里扣真实 delta 实现，不要改 `time.timeScale`** ——
+  时间缩放会把"负责恢复"的那个定时器一起缩掉，`timeScale = 0` 时恢复永远不会触发。
+- 顿帧期间**必须同时冻结单条鱼的倒计时**（`GameplayLane.update` 里判 `impact.frozen`），
+  否则等于白扣玩家的时间。
+- 分屏两条 lane **共享同一个物理世界**，所以 `ImpactFx` 挂在场景上、两条 lane 共用一个实例；
+  震屏则各用各的相机（lane 的 `camera` 参数）。
+- **场景 `shutdown` 必须调 `impact.destroy()`**，否则中途离开会把共享物理世界永久卡在暂停态。
+- 纸屑用 tween 不用物理体：纯装饰、寿命固定，这样不需要回收清单，也不会活过场景。
+
+### 种子随机与每日挑战（`src/utils/random.js`）
+
+**凡是决定"这一局长什么样"的随机都必须走 `lane.random`**（鱼种、目标百分比、出生位置、洋流相位、
+浮动相位），这样同一个种子能完整复现一局。纯装饰性抖动（碎片速度、气泡、纸屑）不受此约束。
+
+- `DailyChallengeScene` 继承 `ArcModeScene`，只重写 `createLaneRandom()` 返回按当天日期播种的
+  生成器 —— 全球玩家当天拿到完全一样的鱼序。
+- 日期用**本地时区**（`dailyKey()`），因为"今天"是玩家体感的今天。
+- 新增出鱼相关随机时，用 `randomInt/randomFloat/pickRandom(this.random, ...)`，
+  **不要用 `Phaser.Math.Between` 或 `GetRandom`**（它们内部走 `Math.random`，会破坏确定性）。
+
 ### 纸感（`src/utils/paper.js`）
 
 美术风格是"手工剪纸"：`paperize()` 在启动时对 `generateTexture` 产出的画布做后处理——纤维颗粒、
@@ -164,7 +189,8 @@ buffer 的），因此播放走 `this.sound`，自动继承 Phaser 的静音/音
 
 ### 数据表（`src/data/fishData.js`）
 
-鱼种、目标百分比规则、评分公式（`scoreForDiff`）、难度分段（`DIFFICULTY_STAGES`）都集中在这里。
+鱼种、目标百分比规则、评分公式（`scoreForDiff`）、难度分段（`DIFFICULTY_STAGES`）、连击、
+**节奏参数**（`CUT_SETTLE_MS` / `NEXT_FISH_DELAY_MS`）、**打击感参数**都集中在这里。
 **可调数值一律放这个文件，不要散落到场景代码里写死。** 目前是 JS 常量导出而非外部 JSON —— 规模还
 不需要配置表体系，别为了"规范"引入一套 JSON + Manager 的加载层。
 
