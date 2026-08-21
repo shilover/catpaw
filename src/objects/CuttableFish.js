@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { t } from '../i18n/index.js';
-import { fishValueMultiplier } from '../data/fishData.js';
+import { fishValueMultiplier, bodyRadii } from '../data/fishData.js';
 import {
   RING_PADDING, FISH_TEXTURE_W, FISH_TEXTURE_H, fishSpriteScale,
   PAPER_TILT_DEGREES, PAPER_SHADOW_OFFSET, PAPER_SHADOW_ALPHA, FONT_FAMILY,
@@ -63,10 +63,12 @@ export default class CuttableFish extends Phaser.GameObjects.Container {
     this.y = this.baseY + Math.sin(time / 320 + this.bobOffset) * 7;
   }
 
+  // The body ellipse the cut is scored against. It comes from the species now,
+  // not from the shared texture size: every fish used to be the same 140x96
+  // ellipse, so a round pufferfish and a flat manta ray were the same geometry
+  // problem wearing different pictures.
   getRadii() {
-    const rx = (this.sprite.width * this.sprite.scaleX) * 0.42;
-    const ry = (this.sprite.height * this.sprite.scaleY) * 0.42;
-    return { rx, ry };
+    return bodyRadii(this.fishType);
   }
 
   setCountdownRatio(ratio) {

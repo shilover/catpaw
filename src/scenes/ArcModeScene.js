@@ -29,11 +29,21 @@ export default class ArcModeScene extends Phaser.Scene {
     return Math.random;
   }
 
+  // Levels run shorter, fixed-length rounds.
+  get roundDuration() {
+    return ROUND_TIME_LIMIT;
+  }
+
+  // Levels restrict the cast, the targets, the current and the clock.
+  get laneRules() {
+    return {};
+  }
+
   create() {
     this.scale.setGameSize(LANDSCAPE_W, LANDSCAPE_H);
     this.w = this.scale.width;
     this.h = this.scale.height;
-    this.roundTimeRemaining = ROUND_TIME_LIMIT;
+    this.roundTimeRemaining = this.roundDuration;
     this.roundOver = false;
 
     addUnderwaterBackground(this);
@@ -53,12 +63,14 @@ export default class ArcModeScene extends Phaser.Scene {
       x: 0, y: HEADER_HEIGHT, width: this.w, height: this.h - HEADER_HEIGHT,
       laneId: 'solo',
       random: this.createLaneRandom(),
+      rules: this.laneRules,
+      fishScaleMultiplier: this.laneRules.fishScale || 1,
       camera: this.cameras.main,
       impact: this.impact,
     });
     this.lane.start();
 
-    this.roundTimeText = this.add.text(this.w - 76, HEADER_HEIGHT / 2, formatClock(ROUND_TIME_LIMIT), {
+    this.roundTimeText = this.add.text(this.w - 76, HEADER_HEIGHT / 2, formatClock(this.roundDuration), {
       fontFamily: FONT_FAMILY, fontSize: '18px', fontStyle: 'bold', color: '#ffffff',
     }).setOrigin(1, 0.5).setDepth(50);
 
@@ -94,7 +106,7 @@ export default class ArcModeScene extends Phaser.Scene {
   tickRound() {
     if (this.roundOver) return;
     this.roundTimeRemaining -= 1;
-    this.lane.setElapsed(ROUND_TIME_LIMIT - this.roundTimeRemaining);
+    this.lane.setElapsed(this.roundDuration - this.roundTimeRemaining);
     if (this.roundTimeRemaining <= 0) {
       this.roundTimeRemaining = 0;
       this.updateRoundTimeText();

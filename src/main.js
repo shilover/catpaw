@@ -4,6 +4,8 @@ import MainMenuScene from './scenes/MainMenuScene.js';
 import ArcModeScene from './scenes/ArcModeScene.js';
 import DailyChallengeScene from './scenes/DailyChallengeScene.js';
 import TutorialScene from './scenes/TutorialScene.js';
+import LevelSelectScene from './scenes/LevelSelectScene.js';
+import LevelScene from './scenes/LevelScene.js';
 import PauseScene from './scenes/PauseScene.js';
 import FinalScoreScene from './scenes/FinalScoreScene.js';
 import CoopModeScene from './scenes/CoopModeScene.js';
@@ -40,7 +42,8 @@ const config = {
     },
   },
   scene: [
-    BootScene, MainMenuScene, TutorialScene, ArcModeScene, DailyChallengeScene,
+    BootScene, MainMenuScene, TutorialScene, LevelSelectScene, LevelScene,
+    ArcModeScene, DailyChallengeScene,
     CoopModeScene, VersusModeScene, PauseScene, FinalScoreScene,
   ],
 };

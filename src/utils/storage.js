@@ -15,6 +15,7 @@ const ACHIEVEMENTS_KEY = 'tinyfish.achievements';
 const DAILY_KEY = 'tinyfish.daily';
 const CUT_GUIDE_KEY = 'tinyfish.cutGuide';
 const TUTORIAL_KEY = 'tinyfish.tutorialDone';
+const LEVEL_STARS_KEY = 'tinyfish.levelStars';
 const MAX_SCORE_LIST = 10;
 
 function readRaw(key) {
@@ -190,4 +191,31 @@ export function isTutorialDone() {
 
 export function setTutorialDone(done = true) {
   writeRaw(TUTORIAL_KEY, String(done));
+}
+
+// --- level progress -------------------------------------------------------
+// Best stars per level, keyed by level id. Only ever goes up: a worse replay
+// must not cost someone progress they already earned.
+
+export function getLevelStars() {
+  try {
+    const parsed = JSON.parse(readRaw(LEVEL_STARS_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+// Returns true when this run improved on the level's previous best.
+export function saveLevelStars(levelId, stars) {
+  const all = getLevelStars();
+  const previous = all[levelId] || 0;
+  if (stars <= previous) return false;
+  all[levelId] = stars;
+  writeRaw(LEVEL_STARS_KEY, JSON.stringify(all));
+  return true;
+}
+
+export function getTotalStars() {
+  return Object.values(getLevelStars()).reduce((sum, n) => sum + (Number(n) || 0), 0);
 }

@@ -4,8 +4,9 @@ import { addUnderwaterBackground, addBubbles } from '../ui/backgroundEffects.js'
 import {
   getHighScore, saveHighScore, getCoopHighScore, saveCoopHighScore, pushScoreListEntry,
   getLifetimeStats, saveLifetimeStats, getUnlockedAchievements, saveUnlockedAchievements,
-  getDailyRecord, saveDailyRecord,
+  getDailyRecord, saveDailyRecord, saveLevelStars,
 } from '../utils/storage.js';
+import { getLevel } from '../data/levels.js';
 import { dailyKey } from '../utils/random.js';
 import { mergeLifetime, evaluateAchievements } from '../data/achievements.js';
 import { shareResult } from '../utils/share.js';
@@ -35,6 +36,8 @@ export default class FinalScoreScene extends Phaser.Scene {
     this.statsA = data.statsA || EMPTY_STATS;
     this.statsB = data.statsB || EMPTY_STATS;
     this.reachedStage = data.reachedStage || 0;
+    this.levelId = data.levelId || null;
+    this.levelStars = data.stars || 0;
   }
 
   create() {
@@ -54,6 +57,7 @@ export default class FinalScoreScene extends Phaser.Scene {
     this.newAchievements = this.recordRound();
 
     if (this.mode === 'versus') this.buildVersus(w, h);
+    else if (this.mode === 'level') this.buildLevel(w, h);
     else this.buildSoloOrCoop(w, h);
 
     this.buildShareButton(w, h);
@@ -207,6 +211,54 @@ export default class FinalScoreScene extends Phaser.Scene {
 
     createButton(this, w / 2, h - 50, 240, 56, t('mainMenu'), { color: 0x8a5cff, fontSize: 20 })
       .on('pointerup', () => this.scene.start('MainMenu'));
+  }
+
+  buildLevel(w, h) {
+    const level = getLevel(this.levelId);
+    const improved = saveLevelStars(this.levelId, this.levelStars);
+    pushScoreListEntry(this.finalScore, 'level');
+
+    this.add.text(w / 2, 62, t('levelResult', { id: this.levelId }), {
+      fontFamily: FONT_FAMILY, fontSize: '26px', fontStyle: 'bold', color: '#bfe9ff',
+    }).setOrigin(0.5);
+
+    this.add.text(w / 2, 96, level ? t(`skill_${level.skill}`) : '', {
+      fontFamily: FONT_FAMILY, fontSize: '17px', color: '#8fb8cf',
+    }).setOrigin(0.5);
+
+    const starText = this.add.text(w / 2, 146, '★★★'.slice(0, this.levelStars) + '☆☆☆'.slice(0, 3 - this.levelStars), {
+      fontFamily: FONT_FAMILY, fontSize: '46px',
+      color: this.levelStars > 0 ? '#ffd23f' : '#446880',
+    }).setOrigin(0.5);
+    if (this.levelStars > 0) {
+      this.tweens.add({ targets: starText, scale: 1.12, duration: 480, yoyo: true, repeat: -1 });
+    }
+
+    this.add.text(w / 2, 190, String(this.finalScore), {
+      fontFamily: FONT_FAMILY, fontSize: '34px', fontStyle: 'bold', color: '#ffe38a',
+    }).setOrigin(0.5);
+
+    if (improved) {
+      this.add.text(w / 2, 222, t('newLevelBest'), {
+        fontFamily: FONT_FAMILY, fontSize: '16px', fontStyle: 'bold', color: '#8affc1',
+      }).setOrigin(0.5);
+    }
+
+    this.buildBreakdown(w / 2, 250, this.stats);
+
+    createButton(this, w / 2 - 130, h - 60, 230, 56, t('levelRetry'), { color: 0xff8a3d, fontSize: 20 })
+      .on('pointerup', () => this.scene.start('Level', { levelId: this.levelId }));
+
+    // Only offer the next level once this one has actually been cleared, since
+    // that is exactly what unlocks it.
+    const next = getLevel(this.levelId + 1);
+    const canAdvance = next && this.levelStars >= 1;
+    createButton(this, w / 2 + 130, h - 60, 230, 56, canAdvance ? t('levelNext') : t('levelSelect'), {
+      color: canAdvance ? 0x2fbf71 : 0x8a5cff, fontSize: 20,
+    }).on('pointerup', () => {
+      if (canAdvance) this.scene.start('Level', { levelId: this.levelId + 1 });
+      else this.scene.start('LevelSelect');
+    });
   }
 
   buildVersus(w, h) {

@@ -8,6 +8,7 @@ import {
   comboMultiplier,
   fishValueMultiplier,
   pickWeightedFish,
+  speciesByKeys,
   COMBO_KEEP_DIFF,
   COMBO_MIN_TO_SHOW,
   CUT_SETTLE_MS,
@@ -97,6 +98,12 @@ export default class GameplayLane {
     this.timedFish = opts.timedFish !== false;
     // Forced on for the tutorial; otherwise it follows the player's setting.
     this.forceCutGuide = !!opts.forceCutGuide;
+    // Level rules: which species appear, which targets are drawn, and any
+    // overrides for the current, the clock or the required cut angle. Empty for
+    // the endless modes, which take all of that from the difficulty stage.
+    this.rules = opts.rules || {};
+    this.speciesPool = speciesByKeys(this.rules.species);
+    this.spawnCount = 0;
 
     this.score = 0;
     // Split out of `score` so Co-op can tell shared progress (both lanes resolve
@@ -253,25 +260,38 @@ export default class GameplayLane {
   spawnFish(forcedFishType, forcedTarget) {
     if (this.roundOver) return null;
 
-    const baseFishType = forcedFishType || pickWeightedFish(this.random);
+    // `cycleSpecies` walks the pool in order instead of drawing from it, so a
+    // level about body shape shows every shape rather than trusting the dice.
+    let baseFishType = forcedFishType;
+    if (!baseFishType) {
+      baseFishType = this.rules.cycleSpecies
+        ? this.speciesPool[this.spawnCount % this.speciesPool.length]
+        : pickWeightedFish(this.random, this.speciesPool);
+    }
+    this.spawnCount += 1;
     const fishType = this.fishScaleMultiplier !== 1
       ? { ...baseFishType, size: baseFishType.size * this.fishScaleMultiplier }
       : baseFishType;
-    const target = forcedTarget !== undefined ? forcedTarget : pickRandom(this.random, TARGET_PERCENT_OPTIONS);
+    const targetPool = this.rules.targets && this.rules.targets.length
+      ? this.rules.targets
+      : TARGET_PERCENT_OPTIONS;
+    const target = forcedTarget !== undefined ? forcedTarget : pickRandom(this.random, targetPool);
     const { x, y } = this.getSpawnBounds(fishType);
 
     const fish = new CuttableFish(this.scene, fishType, { x, y, random: this.random });
     fish.targetPercent = target;
-    fish.windAmplitude = this.stage.windAmplitude;
-    fish.windSpeed = this.stage.windSpeed;
+    const wind = this.rules.wind || this.stage;
+    fish.windAmplitude = wind.amplitude !== undefined ? wind.amplitude : this.stage.windAmplitude;
+    fish.windSpeed = wind.speed !== undefined ? wind.speed : this.stage.windSpeed;
     fish.windOffset = this.random() * Math.PI * 2;
     fish.baseX = x;
     this.gameLayer.add(fish);
     this.currentFish = fish;
 
     if (this.targetBar) this.targetBar.setTarget(target);
-    this.fishTimeRemaining = this.stage.cutTimeLimit;
-    this.fishTimeLimit = this.stage.cutTimeLimit;
+    const cutTime = this.rules.cutTime || this.stage.cutTimeLimit;
+    this.fishTimeRemaining = cutTime;
+    this.fishTimeLimit = cutTime;
     this.lastRingRatio = -1;
     fish.setCountdownRatio(1);
 
@@ -444,6 +464,11 @@ export default class GameplayLane {
     const p1 = { x: a.x - ux * span, y: a.y - uy * span };
     const p2 = { x: b.x + ux * span, y: b.y + uy * span };
 
+    if (!this.matchesRequiredAngle(ux, uy)) {
+      this.showFeedback(cx, cy - ry - 26, t('wrongAngle'), '#ffd23f');
+      return null;
+    }
+
     const polygon = buildEllipsePolygon(cx, cy, rx, ry, 28);
     const halves = cutPolygon(polygon, p1, p2);
     if (!halves) return null;
@@ -461,6 +486,16 @@ export default class GameplayLane {
 
     const rawPercent = (Math.min(areaA, areaB) / total) * 100;
     return this.resolveCut(fish, polyA, polyB, rawPercent, { x: ux, y: uy }, actualDistance);
+  }
+
+  // A cut line has no direction, so the angle only matters modulo 180 degrees.
+  matchesRequiredAngle(ux, uy) {
+    const required = this.rules.cutAngle;
+    if (!required) return true;
+    const degrees = ((Math.atan2(uy, ux) * 180) / Math.PI + 180) % 180;
+    const wanted = ((required.degrees % 180) + 180) % 180;
+    const raw = Math.abs(degrees - wanted);
+    return Math.min(raw, 180 - raw) <= (required.tolerance || 25);
   }
 
   // Resolves a fish with an explicit outcome (used by Co-op so the passive side
