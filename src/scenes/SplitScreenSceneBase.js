@@ -4,6 +4,7 @@ import { addLaneBackground, addBubbles } from '../ui/backgroundEffects.js';
 import { createButton } from '../ui/createButton.js';
 import { PORTRAIT_W, PORTRAIT_H, SPLIT_Y } from '../data/displayConfig.js';
 import { formatClock } from '../utils/format.js';
+import { startMusic, playSfx, SFX } from '../audio/audio.js';
 
 const PAUSE_BTN_W = 44;
 const PAUSE_BTN_H = 30;
@@ -43,6 +44,7 @@ export default class SplitScreenSceneBase extends Phaser.Scene {
     addLaneBackground(this, regionB, true);
     addBubbles(this, 7, regionA);
     addBubbles(this, 7, regionB);
+    startMusic(this);
 
     this.setupCameras(regionA, regionB);
 
@@ -129,6 +131,7 @@ export default class SplitScreenSceneBase extends Phaser.Scene {
     const world = cam.getWorldPoint(pointer.x, pointer.y);
 
     if (phase === 'up' && this.hitsAnyPauseButton(world)) {
+      playSfx(this, SFX.BUTTON);
       this.openPause();
       return;
     }
@@ -160,6 +163,7 @@ export default class SplitScreenSceneBase extends Phaser.Scene {
   updateTimeTexts() {
     const label = formatClock(this.roundTimeRemaining);
     const urgent = this.roundTimeRemaining <= 10;
+    if (urgent && this.roundTimeRemaining > 0) playSfx(this, SFX.TICK);
     this.timeTexts.forEach((t) => {
       t.setText(label);
       t.setColor(urgent ? '#ff5a5a' : '#ffffff');

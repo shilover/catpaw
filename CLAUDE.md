@@ -66,9 +66,13 @@ tinyfishphaser/
 │   ├── scenes/            ← 一个场景一个文件，PascalCase
 │   │   └── SplitScreenSceneBase.js  ← Co-op / Versus 的公共基类（见下文"分屏"）
 │   ├── objects/           ← 运行时实体：CuttableFish / BonusOctopus / GameplayLane
+│   ├── audio/
+│   │   ├── synth.js       ← 程序化合成全部音效与音乐（启动时渲染成 AudioBuffer）
+│   │   └── audio.js       ← 播放层：开关、重触发节流、音乐生命周期
 │   ├── ui/                ← createButton / targetBar / backgroundEffects
 │   └── utils/             ← polygonCut（纯几何）/ pieceTexture（碎片烘焙）/
 │                              storage（localStorage 存档）/ format（mm:ss）
+tests/                     ← Node 内置 test runner，只覆盖零 Phaser 依赖的纯逻辑
 ```
 
 **没有** `public/` 目录、**没有** TypeScript、**没有** React、**没有**统一的 scene-key 常量文件 ——
@@ -99,6 +103,18 @@ tinyfishphaser/
   用 Sutherland-Hodgman 把凸多边形裁成两半（`cutPolygon`），算面积（`polygonArea`）得出占比。
 - 这个模块是**纯函数、零 Phaser 依赖**，请保持这个性质 —— 它是唯一可以脱离渲染做单元测试的部分。
 - 注意：鱼贴图上的鳍/尾巴是伸出椭圆之外的，切割只按椭圆算 —— 这是有意的近似，不是 bug。
+
+### 音频也是程序化生成的
+
+跟贴图同一套思路：`audio/synth.js` 在启动时用振荡器 + 确定性噪声把所有音效和一段 8 秒循环
+音乐渲染成 `AudioBuffer`，直接塞进 `game.cache.audio`（`WebAudioSound` 就是从这里按 key 取
+buffer 的），因此播放走 `this.sound`，自动继承 Phaser 的静音/音量与自动播放解锁。
+
+- **所有播放走 `audio/audio.js` 的 `playSfx` / `startMusic`**，不要直接调 `this.sound.play`——
+  播放层负责开关判断、缺失兜底和同音效 60ms 重触发节流。
+- 音乐由 Sound Manager 持有而非场景，跨场景不中断；`startMusic()` 幂等，每个场景 create 里调一次即可。
+- 无音频环境（`NoAudioSoundManager`）下全部静默降级，**不要假设 `scene.sound.context` 一定存在**。
+- 新增音效 = 在 `synth.js` 写一个 `makeXxx(ctx)` + 登记进 `SFX` 与 `factories`。
 
 ### 数据表（`src/data/fishData.js`）
 
@@ -182,10 +198,14 @@ npm install       # 安装依赖
 npm run dev       # Vite 开发服务器
 npm run build     # 生产构建 → dist/
 npm run preview   # 本地预览生产构建
+npm test          # 单元测试（Node 内置 runner，零额外依赖）
 ```
 
-**项目没有配置 lint / type-check / test，也没装 ESLint / Vitest / Prettier** —— 不要假设这些命令存在，
-也不要在没有明确要求的情况下擅自引入整套工具链。
+**测试用 Node 自带的 `node --test`，没有装 Vitest / Jest，也没有 lint / type-check** —— 不要假设
+这些命令存在，也不要在没有明确要求的情况下擅自引入整套工具链。
+
+测试只覆盖 `tests/` 下**零 Phaser 依赖**的纯逻辑（`polygonCut.js`、`fishData.js`）。需要渲染才能
+验证的东西不要硬塞进单测，走下面的截图验证。
 
 ### 验证方式
 

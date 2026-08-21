@@ -6,17 +6,22 @@ import {
   snapToGrid,
   scoreForDiff,
   getStageForElapsed,
+  comboMultiplier,
+  COMBO_KEEP_DIFF,
+  COMBO_MIN_TO_SHOW,
 } from '../data/fishData.js';
 import CuttableFish from './CuttableFish.js';
 import BonusOctopus from './BonusOctopus.js';
 import TargetBar from '../ui/targetBar.js';
 import { createPieceTexture, destroyPieceTexture, toTextureSpace } from '../utils/pieceTexture.js';
+import { playSfx, playCombo, SFX } from '../audio/audio.js';
 import {
   buildEllipsePolygon,
   cutPolygon,
   polygonArea,
   polygonCentroid,
   pointSegmentDistance,
+  horizontalChordOffsetForPercent,
 } from '../utils/polygonCut.js';
 import {
   HUD_HEIGHT,
@@ -71,7 +76,12 @@ export default class GameplayLane {
     // the same fish, so their cut points are identical) apart from what this
     // player alone earned by grabbing bonus octopuses.
     this.bonusScore = 0;
-    this.stats = { cutCount: 0, perfectCount: 0, nearPerfectCount: 0, missedCount: 0, octopusCount: 0 };
+    this.stats = {
+      cutCount: 0, perfectCount: 0, nearPerfectCount: 0, missedCount: 0, octopusCount: 0, bestCombo: 0,
+    };
+    // Consecutive cuts landed within COMBO_KEEP_DIFF of their target. Drives the
+    // score multiplier, the HUD counter and the rising combo sound.
+    this.combo = 0;
     this.roundOver = false;
     this.currentFish = null;
     this.swipePoints = null;
@@ -125,9 +135,27 @@ export default class GameplayLane {
       fontFamily: 'Arial, sans-serif', fontSize: '13px', fontStyle: 'bold', color: '#bfe9ff',
     }).setOrigin(0, 0.5);
 
+    // Below the HUD strip rather than inside it: the strip already stacks the
+    // stage label, the score and the target bar's percentage labels into 96px,
+    // and anything else put in there collides with the bar's "0%" tick.
+    this.comboText = this.scene.add.text(x + 16, y + HUD_HEIGHT + 20, '', {
+      fontFamily: 'Arial, sans-serif', fontSize: '18px', fontStyle: 'bold', color: '#ffd23f',
+      stroke: '#00121f', strokeThickness: 4,
+    }).setOrigin(0, 0.5);
+
     if (this.showTargetBar) {
       this.targetBar = new TargetBar(this.scene, x + 24, y + 66, w - 48, 16);
     }
+  }
+
+  refreshComboText() {
+    if (this.combo < COMBO_MIN_TO_SHOW) {
+      this.comboText.setText('');
+      return;
+    }
+    this.comboText.setText('COMBO x' + this.combo + '   ' + comboMultiplier(this.combo).toFixed(2) + 'x');
+    this.comboText.setScale(1.35);
+    this.scene.tweens.add({ targets: this.comboText, scale: 1, duration: 180, ease: 'Back.easeOut' });
   }
 
   // Fish can be scaled arbitrarily large, so the spawn position is computed from
@@ -161,6 +189,7 @@ export default class GameplayLane {
         (stage.bandColor >> 16) & 0xff, (stage.bandColor >> 8) & 0xff, stage.bandColor & 0xff, 255,
       ));
       this.flashStageBanner(stage);
+      playSfx(this.scene, SFX.STAGE);
     }
   }
 
@@ -279,7 +308,9 @@ export default class GameplayLane {
     this.currentFish = null;
     this.wobble = null;
     this.stats.missedCount += 1;
+    this.breakCombo();
     this.showFeedback(fish.x, fish.y - 40, 'Missed!', '#ff5a5a');
+    playSfx(this.scene, SFX.MISS);
     this.onMissed();
     fish.playMissedAnimation(() => this.afterFishResolved());
   }
@@ -331,6 +362,12 @@ export default class GameplayLane {
     if (!points || this.disabled) return;
 
     points.push({ x: worldPoint.x, y: worldPoint.y });
+
+    const first = points[0];
+    const last = points[points.length - 1];
+    if (Phaser.Math.Distance.Between(first.x, first.y, last.x, last.y) >= this.minSwipeDistance) {
+      playSfx(this.scene, SFX.SWIPE);
+    }
     this.tryCut(points);
   }
 
@@ -415,9 +452,19 @@ export default class GameplayLane {
 
     const snapped = Phaser.Math.Clamp(snapToGrid(rawPercent), 0, 50);
     const diff = Math.abs(fish.targetPercent - snapped);
-    const points = scoreForDiff(diff);
     const isPerfect = diff === 0;
     const isNearPerfect = diff === TARGET_PERCENT_STEP;
+
+    // A tidy cut extends the streak; a sloppy one ends it. The multiplier is
+    // applied to this cut, so the streak pays off immediately rather than only
+    // on the cut after it.
+    const keepsCombo = diff <= COMBO_KEEP_DIFF;
+    if (keepsCombo) {
+      this.combo += 1;
+      this.stats.bestCombo = Math.max(this.stats.bestCombo, this.combo);
+    }
+    const multiplier = keepsCombo ? comboMultiplier(this.combo) : 1;
+    const points = Math.round(scoreForDiff(diff) * multiplier);
 
     this.score += points;
     this.stats.cutCount += 1;
@@ -428,10 +475,19 @@ export default class GameplayLane {
 
     if (this.targetBar) this.targetBar.animateFillTo(snapped, { color: isPerfect ? 0xffd23f : 0x2fbf71 });
 
+    const comboSuffix = multiplier > 1 ? '  x' + multiplier.toFixed(2) : '';
     const label = isPerfect
-      ? 'PERFECT! +' + points
-      : snapped + '% (target ' + fish.targetPercent + '%)  +' + points;
+      ? 'PERFECT! +' + points + comboSuffix
+      : snapped + '% (target ' + fish.targetPercent + '%)  +' + points + comboSuffix;
     this.showFeedback(fish.x, fish.y - 50, label, isPerfect ? '#ffd23f' : '#8affc1');
+
+    playSfx(this.scene, isPerfect ? SFX.PERFECT : SFX.CUT);
+    if (keepsCombo) {
+      this.refreshComboText();
+      if (this.combo >= COMBO_MIN_TO_SHOW) playCombo(this.scene, this.combo - COMBO_MIN_TO_SHOW);
+    } else {
+      this.breakCombo();
+    }
 
     this.spawnPieces(fish, polyA, polyB, cutDir);
 
@@ -516,6 +572,21 @@ export default class GameplayLane {
     this.scoreText.setText('Score: ' + this.score);
     this.onScoreChange(this.score);
     this.showFeedback(x, y, '+' + score, '#ffd23f');
+    playSfx(this.scene, SFX.BONUS);
+  }
+
+  // Only announce a break the player could feel — resetting an already-zero
+  // streak should be silent.
+  breakCombo() {
+    if (this.combo >= COMBO_MIN_TO_SHOW) {
+      this.showFeedback(
+        this.regionX + this.regionW / 2, this.hudTop + HUD_HEIGHT + 52,
+        'COMBO LOST', '#ff9de2',
+      );
+      playSfx(this.scene, SFX.COMBO_BREAK);
+    }
+    this.combo = 0;
+    this.refreshComboText();
   }
 
   showFeedback(x, y, str, color) {
@@ -601,23 +672,7 @@ export default class GameplayLane {
     this.hudBg.destroy();
     this.scoreText.destroy();
     this.stageText.destroy();
+    this.comboText.destroy();
     if (this.targetBar) this.targetBar.destroy();
   }
-}
-
-// Where to place a horizontal chord (as a fraction of ry, measured from the
-// centre) so the smaller resulting piece is `percent` of the ellipse's area. An
-// ellipse's area above a horizontal chord scales exactly like a unit circle's,
-// and that has no closed-form inverse, so bisect it.
-function horizontalChordOffsetForPercent(percent) {
-  const target = Phaser.Math.Clamp(percent, 0, 50) / 100;
-  const areaAbove = (t) => (Math.acos(t) - t * Math.sqrt(Math.max(0, 1 - t * t))) / Math.PI;
-  let lo = 0;
-  let hi = 1;
-  for (let i = 0; i < 40; i++) {
-    const mid = (lo + hi) / 2;
-    if (areaAbove(mid) > target) lo = mid;
-    else hi = mid;
-  }
-  return (lo + hi) / 2;
 }

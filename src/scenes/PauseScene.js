@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { createButton } from '../ui/createButton.js';
 import { SPLIT_Y } from '../data/displayConfig.js';
+import { playSfx, SFX } from '../audio/audio.js';
 
 const BTN_W = 210;
 const BTN_H = 52;
@@ -95,7 +96,10 @@ export default class PauseScene extends Phaser.Scene {
     const hit = this.hitRects.find((r) => (
       world.x >= r.x && world.x <= r.x + r.w && world.y >= r.y && world.y <= r.y + r.h
     ));
-    if (hit) hit.action();
+    if (hit) {
+      playSfx(this, SFX.BUTTON);
+      hit.action();
+    }
   }
 
   // A button can be reached both through Phaser's own hit test and through the
