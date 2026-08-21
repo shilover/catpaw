@@ -1,9 +1,8 @@
 import Phaser from 'phaser';
-import { t } from '../i18n/index.js';
-import { fishValueMultiplier, bodyRadii } from '../data/fishData.js';
+import { bodyRadii } from '../data/fishData.js';
 import {
   RING_PADDING, FISH_TEXTURE_W, FISH_TEXTURE_H, fishSpriteScale,
-  PAPER_TILT_DEGREES, PAPER_SHADOW_OFFSET, PAPER_SHADOW_ALPHA, FONT_FAMILY,
+  PAPER_TILT_DEGREES, PAPER_SHADOW_OFFSET, PAPER_SHADOW_ALPHA,
 } from '../data/displayConfig.js';
 
 // A single fish waiting to be sliced. It idles in place (gentle bob) while a
@@ -40,19 +39,6 @@ export default class CuttableFish extends Phaser.GameObjects.Container {
     // is scaled back down, and the ring has to match what is actually on screen.
     this.ringRadius = Math.max(FISH_TEXTURE_W, FISH_TEXTURE_H) * fishType.size * 0.5 + RING_PADDING;
     this.setCountdownRatio(1);
-
-    // Species differ in what they pay, so say so on the fish itself rather than
-    // leaving the player to reverse-engineer it from the score popups.
-    const value = fishValueMultiplier(fishType);
-    this.nameLabel = scene.add.text(0, -this.ringRadius - 16, t('fishCaption', {
-      name: t('fish_' + fishType.key),
-      value: value.toFixed(2),
-    }), {
-      fontFamily: FONT_FAMILY, fontSize: '15px', fontStyle: 'bold',
-      color: value >= 1 ? '#ffd23f' : '#cfe9ff',
-      stroke: '#00121f', strokeThickness: 4,
-    }).setOrigin(0.5);
-    this.add(this.nameLabel);
 
     scene.add.existing(this);
   }

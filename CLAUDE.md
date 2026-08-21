@@ -292,6 +292,13 @@ DynamicTexture，世界坐标下的遮罩 Graphics 会落到画面外、碎片�
 - **每个进入游戏的场景都要自己 `this.scale.setGameSize(...)`** —— 单人是横屏、双人是竖屏，画布尺寸
   是全局的，谁进来谁负责设成自己要的尺寸，否则会继承上一个场景的画布。
 
+### 飘字与标签走对象池
+
+Phaser 的 **`Text` 每个都自带一张 canvas**，所以高频文字不要现建现毁。`GameplayLane` 里：
+- 飘字反馈走 `acquireFeedback()` 的池子（回收方式是 `setVisible(false)`，不是 `destroy()`）。
+- 鱼名标签是 lane 上**一个**复用的 `captionText`，每帧跟随当前鱼——**不要挪回 `CuttableFish`**，
+  那等于每条鱼建一个 Text。
+
 ### 合作模式是"两人各切各的"，不是"一人切两人算"
 
 ⚠️ Co-op 曾经的做法是：谁先切，就把结果**复制**给另一半（`resolveWithPercent`）。这意味着
@@ -316,6 +323,10 @@ DynamicTexture，世界坐标下的遮罩 Graphics 会落到画面外、碎片�
   再给元素自己加一次 `angle` 就会转两次。
 - 输入必须**手动按 `pointer.y` 分流到对应相机**，再用 `cam.getWorldPoint()` 转成世界坐标交给对应的
   lane —— 不能直接用 `pointer.worldX/worldY`。
+对战的干扰分三档，最强一档挂在连击上（完美 + 连击≥3 → 隐藏对手的目标箭头），这样连击系统在
+对战里也有意义。三档各攻击不同的东西：稳定性 / 视野 / 信息——**新增干扰时保持这个区分**，
+否则只是又一种视觉噪音。
+
 - Phaser 4 在"存在第二台旋转相机 + 多个 interactive 对象"时，自带的命中测试会漏掉对象。项目里因此
   有手写矩形命中兜底（`SplitScreenSceneBase.hitsAnyPauseButton` / `PauseScene.routePointer`）。
   碰到"按钮点不动"先怀疑这个，不要怀疑按钮本身。**注意兜底和 Phaser 自身的 `pointerup` 可能都会触发，

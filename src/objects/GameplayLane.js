@@ -132,6 +132,8 @@ export default class GameplayLane {
     this.pieces = [];
     this.activeOctopus = null;
     this.wobble = null;
+    // Reused floating popups; see showFeedback.
+    this.feedbackPool = [];
 
     this.gameLayer = scene.add.container(0, 0);
     this.trailGraphics = scene.add.graphics().setDepth(20);
@@ -178,9 +180,34 @@ export default class GameplayLane {
       stroke: '#00121f', strokeThickness: 4,
     }).setOrigin(0, 0.5);
 
+    // One reused caption for whichever fish is on screen. It used to live inside
+    // each CuttableFish, which meant building and discarding a Text — and the
+    // canvas behind it — for every single spawn.
+    this.captionText = this.scene.add.text(0, 0, '', {
+      fontFamily: FONT_FAMILY, fontSize: '15px', fontStyle: 'bold',
+      color: '#ffd23f', stroke: '#00121f', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(24).setVisible(false);
+
     if (this.showTargetBar) {
       this.targetBar = new TargetBar(this.scene, x + 24, y + 66, w - 48, 16);
     }
+  }
+
+  // Species differ in what they pay, so say so on the fish itself rather than
+  // leaving the player to reverse-engineer it from the score popups.
+  showCaptionFor(fish) {
+    const value = fishValueMultiplier(fish.fishType);
+    this.captionText.setText(t('fishCaption', {
+      name: t('fish_' + fish.fishType.key),
+      value: value.toFixed(2),
+    }));
+    this.captionText.setColor(value >= 1 ? '#ffd23f' : '#cfe9ff');
+    this.captionText.setVisible(true);
+    this.positionCaption(fish);
+  }
+
+  positionCaption(fish) {
+    this.captionText.setPosition(fish.x, fish.y - fish.ringRadius - 16);
   }
 
   refreshComboText() {
@@ -293,6 +320,7 @@ export default class GameplayLane {
     this.fishTimeLimit = cutTime;
     this.lastRingRatio = -1;
     fish.setCountdownRatio(1);
+    this.showCaptionFor(fish);
 
     return fish;
   }
@@ -307,6 +335,7 @@ export default class GameplayLane {
       // Horizontal drift layered on top of the fish's own idle bob, driven by
       // the current difficulty stage's "current" strength.
       fish.x = fish.baseX + Math.sin((time / 1000) * fish.windSpeed + fish.windOffset) * fish.windAmplitude;
+      this.positionCaption(fish);
 
       if (this.timedFish && !this.roundOver && !(this.impact && this.impact.frozen)) {
         this.fishTimeRemaining -= delta / 1000;
@@ -358,6 +387,7 @@ export default class GameplayLane {
     if (!fish || fish.resolved) return;
     this.currentFish = null;
     this.wobble = null;
+    this.captionText.setVisible(false);
     this.stats.missedCount += 1;
     this.breakCombo();
     this.showFeedback(fish.x, fish.y - 40, t('missed'), '#ff5a5a');
@@ -499,6 +529,7 @@ export default class GameplayLane {
 
   resolveCut(fish, polyA, polyB, rawPercent, cutDir, actualDistance = 0) {
     fish.markResolved();
+    this.captionText.setVisible(false);
     this.currentFish = null;
     this.wobble = null;
 
@@ -730,19 +761,45 @@ export default class GameplayLane {
     this.refreshComboText();
   }
 
+  // Floating score popups, drawn from a small pool.
+  //
+  // Every Phaser Text owns its own canvas, and a busy round throws three of
+  // these a cut — score, combo, and whatever the mode adds — so creating and
+  // destroying them was a steady drip of canvas allocation for objects that all
+  // look the same and live under a second. Reusing a handful costs nothing and
+  // allocates nothing after the first few.
   showFeedback(x, y, str, color) {
-    const popup = this.scene.add.text(x, y, str, {
-      fontFamily: FONT_FAMILY, fontSize: '22px', fontStyle: 'bold', color,
-      stroke: '#00121f', strokeThickness: 4,
-    }).setOrigin(0.5).setDepth(30);
+    const popup = this.acquireFeedback();
+    popup.setPosition(x, y);
+    popup.setText(str);
+    popup.setColor(color);
+    popup.setAlpha(1);
+    popup.setVisible(true);
+
     this.scene.tweens.add({
       targets: popup,
       y: y - 60,
       alpha: 0,
       duration: 750,
       ease: 'Cubic.easeOut',
-      onComplete: () => popup.destroy(),
+      // Back to the pool rather than destroyed.
+      onComplete: () => popup.setVisible(false),
     });
+  }
+
+  acquireFeedback() {
+    const free = this.feedbackPool.find((t) => !t.visible);
+    if (free) {
+      this.scene.tweens.killTweensOf(free);
+      return free;
+    }
+
+    const popup = this.scene.add.text(0, 0, '', {
+      fontFamily: FONT_FAMILY, fontSize: '22px', fontStyle: 'bold', color: '#ffffff',
+      stroke: '#00121f', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(30);
+    this.feedbackPool.push(popup);
+    return popup;
   }
 
   // --- Versus-mode obstruction effects (triggered by the opponent) -----------
@@ -773,6 +830,25 @@ export default class GameplayLane {
     });
   }
 
+  // Versus: hide the opponent's target arrow for a while. They can still see the
+  // scale, so it reads as pressure rather than breakage — they have to cut from
+  // memory of the number that was there a second ago.
+  applyTargetBlackout(durationMs = 4200) {
+    if (!this.targetBar) return;
+    this.targetBar.setMarkerHidden(true);
+    this.showFeedback(
+      this.regionX + this.regionW / 2,
+      this.hudTop + HUD_HEIGHT + 52,
+      t('blacked'), '#ffd23f',
+    );
+
+    if (this.blackoutTimer) this.blackoutTimer.remove(false);
+    this.blackoutTimer = this.scene.time.delayedCall(durationMs, () => {
+      this.blackoutTimer = null;
+      if (this.targetBar) this.targetBar.setMarkerHidden(false);
+    });
+  }
+
   applyFishWobble(durationMs = 1800) {
     const fish = this.currentFish;
     if (!fish || fish.resolved) return;
@@ -799,6 +875,10 @@ export default class GameplayLane {
 
   destroy() {
     this.endRound();
+    if (this.blackoutTimer) {
+      this.blackoutTimer.remove(false);
+      this.blackoutTimer = null;
+    }
     // Each piece carries a canvas texture of its own; dropping the sprite is not
     // enough, the Texture Manager entry has to go with it.
     this.pieces.forEach((piece) => {
@@ -807,6 +887,9 @@ export default class GameplayLane {
     });
     this.pieces.length = 0;
 
+    this.feedbackPool.forEach((popup) => popup.destroy());
+    this.feedbackPool.length = 0;
+
     this.gameLayer.destroy();
     this.trailGraphics.destroy();
     this.obstructionLayer.destroy();
@@ -814,6 +897,7 @@ export default class GameplayLane {
     this.scoreText.destroy();
     this.stageText.destroy();
     this.comboText.destroy();
+    this.captionText.destroy();
     if (this.targetBar) this.targetBar.destroy();
   }
 }

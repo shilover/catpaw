@@ -53,9 +53,17 @@ export default class TargetBar {
     }
   }
 
+  // Hides only the arrow, leaving the scale and ticks in place. Used by Versus:
+  // taking away *where to aim* is a sharper attack than covering the screen,
+  // and it stays legible enough not to feel like a bug.
+  setMarkerHidden(hidden) {
+    this.markerHidden = hidden;
+    this.targetMarker.setVisible(!hidden && this.targetPercent !== undefined);
+  }
+
   setTarget(percent) {
     this.targetPercent = percent;
-    this.targetMarker.setVisible(true);
+    this.targetMarker.setVisible(!this.markerHidden);
     this.targetMarker.clear();
     const tx = this.percentToX(percent);
     this.targetMarker.fillStyle(0xffe38a, 1);
