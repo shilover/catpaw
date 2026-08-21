@@ -30,6 +30,16 @@ export default {
     + 'opponent; a near-miss wobbles\n'
     + 'their fish.',
 
+  // Fish species
+  fish_clown: 'Clownfish',
+  fish_cute: 'Cute Fish',
+  fish_puffer: 'Pufferfish',
+  fish_angel: 'Angelfish',
+  fish_ray: 'Manta Ray',
+  fish_octopus: 'Octopus',
+
+  fishCaption: '{name}  x{value}',
+
   // In-round HUD
   score: 'Score: {score}',
   combo: 'COMBO x{count}   {multiplier}x',
@@ -73,4 +83,40 @@ export default {
   statMissed: 'Missed',
   statOctopus: 'Octopus',
   statBestCombo: 'Best combo',
+
+  // Achievements
+  achievements: 'Achievements',
+  achievementUnlocked: 'ACHIEVEMENT UNLOCKED',
+  achievementsProgress: '{done} / {total} unlocked',
+  noAchievements: 'Nothing unlocked yet — go cut some fish!',
+  share: 'Share',
+  shareCopied: 'Result copied to clipboard!',
+  shareFailed: 'Could not share on this device.',
+  shareTitle: 'Tiny Fish',
+  shareBody: 'I scored {score} in Tiny Fish!\nPerfect cuts: {perfect} · Best combo: x{combo}',
+  shareBodyVersus: 'Tiny Fish match: P1 {scoreA} vs P2 {scoreB}',
+  ach_firstCut: 'First Cut',
+  ach_firstCut_desc: 'Slice your first fish.',
+  ach_firstPerfect: 'Dead On',
+  ach_firstPerfect_desc: 'Land a perfect cut.',
+  ach_perfectionist: 'Perfectionist',
+  ach_perfectionist_desc: 'Land 25 perfect cuts.',
+  ach_combo5: 'On a Roll',
+  ach_combo5_desc: 'Reach a 5-cut combo.',
+  ach_combo12: 'Unstoppable',
+  ach_combo12_desc: 'Reach a 12-cut combo.',
+  ach_octopusHunter: 'Octopus Hunter',
+  ach_octopusHunter_desc: 'Catch 15 bonus octopuses.',
+  ach_thousandaire: 'Thousandaire',
+  ach_thousandaire_desc: 'Score 1000 in a single round.',
+  ach_flawless: 'Not One Got Away',
+  ach_flawless_desc: 'Finish a round of 8+ fish with none missed.',
+  ach_marineBiologist: 'Marine Biologist',
+  ach_marineBiologist_desc: 'Cut every species at least once.',
+  ach_riptide: 'Riptide Rider',
+  ach_riptide_desc: 'Play through to the Riptide stage.',
+  ach_teamPlayer: 'Team Player',
+  ach_teamPlayer_desc: 'Finish a Co-op round.',
+  ach_champion: 'Champion',
+  ach_champion_desc: 'Win a Versus match.',
 };

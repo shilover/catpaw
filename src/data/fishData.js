@@ -5,6 +5,7 @@
 export const CUT_FISH_TYPES = [
   {
     key: 'clown',
+    spawnWeight: 10,
     name: 'Clownfish',
     baseScore: 10,
     size: 4.0,
@@ -14,6 +15,7 @@ export const CUT_FISH_TYPES = [
   },
   {
     key: 'cute',
+    spawnWeight: 7,
     name: 'CuteFish',
     baseScore: 15,
     size: 3.8,
@@ -23,6 +25,7 @@ export const CUT_FISH_TYPES = [
   },
   {
     key: 'puffer',
+    spawnWeight: 5,
     name: 'Pufferfish',
     baseScore: 20,
     size: 3.6,
@@ -32,6 +35,7 @@ export const CUT_FISH_TYPES = [
   },
   {
     key: 'angel',
+    spawnWeight: 5,
     name: 'Angelfish',
     baseScore: 18,
     size: 4.1,
@@ -41,6 +45,7 @@ export const CUT_FISH_TYPES = [
   },
   {
     key: 'ray',
+    spawnWeight: 3,
     name: 'Manta Ray',
     baseScore: 25,
     size: 4.2,
@@ -62,6 +67,31 @@ export const OCTOPUS_BONUS = {
 
 // Per-fish cut target: random 10%-50% in 5% steps (the smaller piece's area
 // can never exceed 50% of the whole fish, by definition).
+// --- Species value ---------------------------------------------------------
+// `baseScore` is what a species is worth relative to the others. It is turned
+// into a multiplier against a reference so the numbers on screen stay in the
+// range players are used to, instead of a Manta Ray paying 2.5x a Clownfish for
+// the same cut. Rarity is the other half of the trade: see `spawnWeight` above,
+// where the valuable species are deliberately scarcer.
+export const FISH_VALUE_REFERENCE = 15;
+
+export function fishValueMultiplier(fishType) {
+  if (!fishType || !fishType.baseScore) return 1;
+  return fishType.baseScore / FISH_VALUE_REFERENCE;
+}
+
+// Weighted pick, so rarity actually means something. `random` is injectable to
+// keep this testable.
+export function pickWeightedFish(random = Math.random) {
+  const total = CUT_FISH_TYPES.reduce((sum, f) => sum + (f.spawnWeight || 1), 0);
+  let roll = random() * total;
+  for (const fish of CUT_FISH_TYPES) {
+    roll -= (fish.spawnWeight || 1);
+    if (roll < 0) return fish;
+  }
+  return CUT_FISH_TYPES[CUT_FISH_TYPES.length - 1];
+}
+
 export const TARGET_PERCENT_MIN = 10;
 export const TARGET_PERCENT_MAX = 50;
 export const TARGET_PERCENT_STEP = 5;
