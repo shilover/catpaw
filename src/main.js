@@ -9,9 +9,11 @@ import VersusModeScene from './scenes/VersusModeScene.js';
 import { LANDSCAPE_W, LANDSCAPE_H } from './data/displayConfig.js';
 
 const config = {
-  // Canvas renderer: the fish-slicing effect relies on GeometryMask, which
-  // Phaser 4 only supports in Canvas (WebGL needs the newer Filter/Mask API).
-  type: Phaser.CANVAS,
+  // WebGL wherever it is available. The slicing effect used to force Canvas
+  // because it relied on GeometryMask, which Phaser 4 only supports there; the
+  // pieces are now baked into their own textures at cut time (see
+  // utils/pieceTexture.js), so nothing in the game is renderer-specific.
+  type: Phaser.AUTO,
   parent: 'app',
   width: LANDSCAPE_W,
   height: LANDSCAPE_H,
@@ -19,6 +21,14 @@ const config = {
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
+  input: {
+    // Co-op and Versus put two players on one screen at the same time. Phaser
+    // creates a single touch pointer by default (see
+    // node_modules/phaser/src/core/Config.js — `input.activePointers`), which
+    // means the second player's finger produced no events at all: whoever
+    // touched down first owned the whole device.
+    activePointers: 3,
   },
   physics: {
     default: 'arcade',
@@ -32,5 +42,8 @@ const config = {
 
 const game = new Phaser.Game(config);
 
-// Exposed for local debugging/tooling only (e.g. driving a headless smoke test).
-window.__PHASER_GAME__ = game;
+// Debug/tooling handle, used by the Playwright screenshot harness to jump
+// scenes and read game state. Dev builds only — it must not ship.
+if (import.meta.env.DEV) {
+  window.__PHASER_GAME__ = game;
+}

@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
+import { RING_PADDING, FISH_TEXTURE_W, FISH_TEXTURE_H, fishSpriteScale } from '../data/displayConfig.js';
 
 // A single fish waiting to be sliced. It idles in place (gentle bob) while a
-// per-fish countdown ring depletes; ArcModeScene owns the actual cut
-// geometry/timer and drives this object via its public methods.
+// per-fish countdown ring depletes. GameplayLane owns the cut geometry and the
+// timer, and drives this object from its own update(): nothing in here runs on a
+// timer of its own.
 export default class CuttableFish extends Phaser.GameObjects.Container {
   constructor(scene, fishType, { x, y }) {
     super(scene, x, y);
@@ -12,23 +14,22 @@ export default class CuttableFish extends Phaser.GameObjects.Container {
     this.resolved = false;
     this.bobOffset = Math.random() * Math.PI * 2;
 
-    this.sprite = scene.add.sprite(0, 0, `fish-${fishType.key}`).setScale(fishType.size);
+    this.sprite = scene.add.sprite(0, 0, 'fish-' + fishType.key).setScale(fishSpriteScale(fishType.size));
     this.ring = scene.add.graphics();
     this.add([this.ring, this.sprite]);
 
-    this.ringRadius = Math.max(this.sprite.width, this.sprite.height) * fishType.size * 0.5 + 8;
+    // Design units, not texture pixels: the texture is supersampled, the sprite
+    // is scaled back down, and the ring has to match what is actually on screen.
+    this.ringRadius = Math.max(FISH_TEXTURE_W, FISH_TEXTURE_H) * fishType.size * 0.5 + RING_PADDING;
     this.setCountdownRatio(1);
 
     scene.add.existing(this);
+  }
 
-    this.bobEvent = scene.time.addEvent({
-      delay: 16,
-      loop: true,
-      callback: () => {
-        if (this.resolved) return;
-        this.y = this.baseY + Math.sin(scene.time.now / 320 + this.bobOffset) * 7;
-      },
-    });
+  // Called every frame by the owning lane while the fish is alive.
+  updateIdle(time) {
+    if (this.resolved) return;
+    this.y = this.baseY + Math.sin(time / 320 + this.bobOffset) * 7;
   }
 
   getRadii() {
@@ -53,7 +54,6 @@ export default class CuttableFish extends Phaser.GameObjects.Container {
 
   markResolved() {
     this.resolved = true;
-    if (this.bobEvent) this.bobEvent.remove(false);
   }
 
   playMissedAnimation(onComplete) {
@@ -70,10 +70,5 @@ export default class CuttableFish extends Phaser.GameObjects.Container {
         if (onComplete) onComplete();
       },
     });
-  }
-
-  destroy(fromScene) {
-    if (this.bobEvent) this.bobEvent.remove(false);
-    super.destroy(fromScene);
   }
 }
