@@ -37,6 +37,7 @@ export default {
   fish_ray: '魔鬼鱼',
   fish_octopus: '章鱼',
 
+  targetLabel: '目标 {percent}%',
   fishCaption: '{name}  {value} 倍',
 
   // In-round HUD

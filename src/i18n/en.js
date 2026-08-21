@@ -38,6 +38,7 @@ export default {
   fish_ray: 'Manta Ray',
   fish_octopus: 'Octopus',
 
+  targetLabel: 'TARGET {percent}%',
   fishCaption: '{name}  x{value}',
 
   // In-round HUD
