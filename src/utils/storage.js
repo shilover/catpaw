@@ -13,6 +13,8 @@ const LANG_KEY = 'tinyfish.lang';
 const LIFETIME_KEY = 'tinyfish.lifetime';
 const ACHIEVEMENTS_KEY = 'tinyfish.achievements';
 const DAILY_KEY = 'tinyfish.daily';
+const CUT_GUIDE_KEY = 'tinyfish.cutGuide';
+const TUTORIAL_KEY = 'tinyfish.tutorialDone';
 const MAX_SCORE_LIST = 10;
 
 function readRaw(key) {
@@ -164,4 +166,28 @@ export function saveDailyRecord(dateKey, score) {
     plays: current.plays + 1,
   }));
   return improved;
+}
+
+// --- teaching aids --------------------------------------------------------
+
+// 'auto' shows the ideal-cut line only while the player is still learning,
+// which is the behaviour almost everyone wants; 'on' and 'off' are for the
+// people who disagree, in either direction.
+export const CUT_GUIDE_MODES = ['auto', 'on', 'off'];
+
+export function getCutGuideMode() {
+  const raw = readRaw(CUT_GUIDE_KEY);
+  return CUT_GUIDE_MODES.includes(raw) ? raw : 'auto';
+}
+
+export function setCutGuideMode(mode) {
+  if (CUT_GUIDE_MODES.includes(mode)) writeRaw(CUT_GUIDE_KEY, mode);
+}
+
+export function isTutorialDone() {
+  return readRaw(TUTORIAL_KEY) === 'true';
+}
+
+export function setTutorialDone(done = true) {
+  writeRaw(TUTORIAL_KEY, String(done));
 }

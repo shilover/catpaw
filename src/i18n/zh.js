@@ -83,6 +83,28 @@ export default {
   statOctopus: '章鱼',
   statBestCombo: '最高连击',
 
+  // Tutorial and teaching aids
+  idealCutHere: '{percent}% 在这里',
+  tutorialSkip: '跳过',
+  tutorialProgress: '第 {step} / {total} 步',
+  tutorialReplay: '重玩教程',
+  cutGuideLabel: '理想切线：{mode}',
+  cutGuideAuto: '自动',
+  cutGuideOn: '开',
+  cutGuideOff: '关',
+  tut_swipe_title: '划过小鱼',
+  tut_swipe_body: '从鱼身上划一条线过去。切在中间附近就行 —— 这就是全部操作。',
+  tut_target_title: '对准目标比例',
+  tut_target_body: '上方刻度条的箭头就是目标。试着切下那么多 —— 算分看的是较小的那一半。',
+  tut_guide_title: '看那条绿线',
+  tut_guide_body: '每次切完，虚线会告诉你目标到底在哪。看上几次，你就能在下刀前把它想出来了。',
+  tut_octopus_title: '抓住章鱼',
+  tut_octopus_body: '切开这条鱼，然后在弹出的章鱼落下前点住它。正式对局里只有完美一刀才会召唤它。',
+  tut_combo_title: '别让连击断掉',
+  tut_combo_body: '连续切得接近目标，连击倍率就会往上爬。切歪太多就会清零。',
+  tut_done_title: '这就是全部玩法了',
+  tut_done_body: '剩下的都是熟练度。祝你好运。',
+
   // Daily challenge
   dailyMode: '每日挑战',
   dailyTagline: '全球同一套鱼，仅限今天',

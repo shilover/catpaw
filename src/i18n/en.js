@@ -84,6 +84,28 @@ export default {
   statOctopus: 'Octopus',
   statBestCombo: 'Best combo',
 
+  // Tutorial and teaching aids
+  idealCutHere: '{percent}% was here',
+  tutorialSkip: 'Skip',
+  tutorialProgress: 'Step {step} / {total}',
+  tutorialReplay: 'Replay tutorial',
+  cutGuideLabel: 'Ideal cut line: {mode}',
+  cutGuideAuto: 'auto',
+  cutGuideOn: 'on',
+  cutGuideOff: 'off',
+  tut_swipe_title: 'Swipe across the fish',
+  tut_swipe_body: 'Drag a line right through it. Anywhere near the middle will do — that is all a cut is.',
+  tut_target_title: 'Match the target',
+  tut_target_body: 'The arrow on the bar above marks the target. Cut off that much of the fish — the smaller half is the one that counts.',
+  tut_guide_title: 'Watch the green line',
+  tut_guide_body: 'After each cut, the dashed line shows where the target actually was. A few of these and you will start seeing it before you cut.',
+  tut_octopus_title: 'Grab the octopus',
+  tut_octopus_body: 'Cut the fish, then tap the octopus that pops out before it falls. In a real round only a perfect cut summons one.',
+  tut_combo_title: 'Keep the streak alive',
+  tut_combo_body: 'Land cuts close to the target back to back and the combo multiplier climbs. Miss badly and it resets.',
+  tut_done_title: 'That is the whole game',
+  tut_done_body: 'Everything else is practice. Good luck out there.',
+
   // Daily challenge
   dailyMode: 'DAILY',
   dailyTagline: 'Same fish for everyone, today only',

@@ -9,7 +9,10 @@ import { LANDSCAPE_W, LANDSCAPE_H, FISH_SUPERSAMPLE, FONT_FAMILY } from '../data
 import { startMusic, syncMusic, playSfx, SFX } from '../audio/audio.js';
 import { t, nextLanguage, setLanguage, languageLabel } from '../i18n/index.js';
 import { ACHIEVEMENTS } from '../data/achievements.js';
-import { getLifetimeStats, getUnlockedAchievements, getDailyRecord } from '../utils/storage.js';
+import {
+  getLifetimeStats, getUnlockedAchievements, getDailyRecord,
+  getCutGuideMode, setCutGuideMode, CUT_GUIDE_MODES,
+} from '../utils/storage.js';
 import { dailyKey } from '../utils/random.js';
 
 // Mirrors BPUI_MainMenu: background_main, title_00, button_arc / button_vs,
@@ -234,13 +237,41 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   showContactPopup(w, h) {
-    this.showPopup(
-      w,
-      h,
-      t('studio'),
-      t('howToPlay'),
-      380,
-    );
+    // Cycles auto -> on -> off. 'auto' shows the ideal-cut line only while the
+    // player is still learning, which is what almost everyone wants; the other
+    // two are for the people who disagree, in either direction.
+    const guideLabel = () => {
+      const mode = getCutGuideMode();
+      return t('cutGuideLabel', { mode: t('cutGuide' + mode.charAt(0).toUpperCase() + mode.slice(1)) });
+    };
+
+    let overlay;
+    const buildGuideBtn = (parent, x, y) => {
+      const btn = createButton(this, x, y, 300, 46, guideLabel(), { color: 0x2f9fe0, fontSize: 16 });
+      parent.add(btn);
+      btn.on('pointerup', () => {
+        const modes = CUT_GUIDE_MODES;
+        setCutGuideMode(modes[(modes.indexOf(getCutGuideMode()) + 1) % modes.length]);
+        btn.destroy();
+        buildGuideBtn(parent, x, y);
+      });
+    };
+
+    overlay = this.showPopup(w, h, t('studio'), t('howToPlay'), [
+      { build: (parent, x, y) => buildGuideBtn(parent, x, y) },
+      {
+        build: (parent, x, y) => {
+          const btn = createButton(this, x, y, 300, 46, t('tutorialReplay'), {
+            color: 0x2fbf71, fontSize: 16,
+          });
+          parent.add(btn);
+          btn.on('pointerup', () => {
+            overlay.destroy();
+            this.goTo('Tutorial');
+          });
+        },
+      },
+    ]);
   }
 
   showScoreListPopup(w, h) {
@@ -257,27 +288,49 @@ export default class MainMenuScene extends Phaser.Scene {
     this.showPopup(w, h, t('recentScores'), body);
   }
 
-  showPopup(w, h, title, body, panelHeight = 280) {
+  // Sizes itself around its content. The help popup grew two extra controls and
+  // a hand-picked panel height promptly buried them under the close button, so
+  // the layout is measured rather than guessed: body text first, then buttons
+  // stacked up from the bottom.
+  showPopup(w, h, title, body, extraButtons = []) {
+    const panelW = 380;
     const overlay = this.add.container(0, 0).setDepth(50);
     const dim = this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.55).setInteractive();
+
+    const bodyText = this.add.text(0, 0, body, {
+      fontFamily: FONT_FAMILY, fontSize: '16px', color: '#dff2ff', align: 'center', lineSpacing: 6,
+      wordWrap: { width: panelW - 48 },
+    }).setOrigin(0.5, 0);
+
+    const rowH = 56;
+    const headerH = 66;
+    const panelH = headerH + bodyText.height + 22 + (extraButtons.length + 1) * rowH + 16;
+    const top = h / 2 - panelH / 2;
+
     const panel = this.add.graphics();
-    const top = h / 2 - panelHeight / 2;
     panel.fillStyle(0x123a5c, 0.96);
-    panel.fillRoundedRect(w / 2 - 190, top, 380, panelHeight, 20);
+    panel.fillRoundedRect(w / 2 - panelW / 2, top, panelW, panelH, 20);
     panel.lineStyle(3, 0xffffff, 0.5);
-    panel.strokeRoundedRect(w / 2 - 190, top, 380, panelHeight, 20);
+    panel.strokeRoundedRect(w / 2 - panelW / 2, top, panelW, panelH, 20);
 
     const titleText = this.add.text(w / 2, top + 36, title, {
       fontFamily: FONT_FAMILY, fontSize: '24px', fontStyle: 'bold', color: '#ffffff',
     }).setOrigin(0.5);
-    const bodyText = this.add.text(w / 2, top + panelHeight / 2 + 6, body, {
-      fontFamily: FONT_FAMILY, fontSize: '16px', color: '#dff2ff', align: 'center', lineSpacing: 6,
-    }).setOrigin(0.5);
+    bodyText.setPosition(w / 2, top + headerH);
 
     overlay.add([dim, panel, titleText, bodyText]);
-    const closeBtn = createButton(this, w / 2, top + panelHeight - 40, 140, 50, t('close'), { color: 0xff8a3d });
+
+    // Bottom-up, so the close button is always the last row and never collides.
+    const closeY = top + panelH - 16 - rowH / 2;
+    extraButtons.forEach((spec, i) => {
+      const y = closeY - (extraButtons.length - i) * rowH;
+      spec.build(overlay, w / 2, y);
+    });
+
+    const closeBtn = createButton(this, w / 2, closeY, 140, 46, t('close'), { color: 0xff8a3d });
     overlay.add(closeBtn);
     closeBtn.on('pointerup', () => overlay.destroy());
     dim.on('pointerdown', () => overlay.destroy());
+    return overlay;
   }
 }

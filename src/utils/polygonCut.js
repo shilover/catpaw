@@ -114,3 +114,17 @@ export function horizontalChordOffsetForPercent(percent) {
   }
   return (lo + hi) / 2;
 }
+
+// How far from the centre a chord must sit, along the unit normal (nx, ny), so
+// that it cuts `percent` of the ellipse off. Returns a world-space distance.
+//
+// This is what lets the game show a player where they *should* have cut, at the
+// angle they actually swiped. The trick is that scaling the ellipse into a unit
+// circle (x/rx, y/ry) preserves area ratios and maps lines to lines, and on a
+// circle the answer only depends on distance — the direction drops out. A line
+// at signed distance d along n maps to one at d / |(nx*rx, ny*ry)| on the
+// circle, so the circle answer just scales back by that same length.
+export function idealChordDistance(rx, ry, nx, ny, percent) {
+  const length = Math.hypot(nx * rx, ny * ry);
+  return horizontalChordOffsetForPercent(percent) * length;
+}
