@@ -188,6 +188,16 @@ export default class GameplayLane {
       color: '#ffd23f', stroke: '#00121f', strokeThickness: 4,
     }).setOrigin(0.5).setDepth(24).setVisible(false);
 
+    // The target, spelled out under the fish. It is on the accuracy bar too,
+    // but there it is a small arrow on a strip at the top of the screen — a long
+    // way from where the player is actually looking, which is the fish. This is
+    // the number they need on every single cut, so it goes where their eyes
+    // already are. Reused, like the caption above: one Text for every fish.
+    this.targetText = this.scene.add.text(0, 0, '', {
+      fontFamily: FONT_FAMILY, fontSize: '26px', fontStyle: 'bold',
+      color: '#ffe38a', stroke: '#00121f', strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(24).setVisible(false);
+
     if (this.showTargetBar) {
       this.targetBar = new TargetBar(this.scene, x + 24, y + 66, w - 48, 16);
     }
@@ -203,11 +213,37 @@ export default class GameplayLane {
     }));
     this.captionText.setColor(value >= 1 ? '#ffd23f' : '#cfe9ff');
     this.captionText.setVisible(true);
-    this.positionCaption(fish);
+    this.positionFishLabels(fish);
   }
 
-  positionCaption(fish) {
-    this.captionText.setPosition(fish.x, fish.y - fish.ringRadius - 16);
+  showTargetFor(fish) {
+    this.targetText.setText(t('targetLabel', { percent: fish.targetPercent }));
+    this.targetText.setVisible(true);
+    this.positionFishLabels(fish);
+
+    // A small pop on spawn, so a new target registers as new rather than
+    // blending into the number that was there a moment ago.
+    this.targetText.setScale(1.35);
+    this.scene.tweens.add({
+      targets: this.targetText, scale: 1, duration: 220, ease: 'Back.easeOut',
+    });
+  }
+
+  // Both labels are clamped into the space between the HUD and the sea floor.
+  // The biggest species have a countdown ring wide enough that getSpawnBounds
+  // cannot satisfy its own margins and falls back to centring the fish, and an
+  // unclamped caption then lands on top of the accuracy bar.
+  positionFishLabels(fish) {
+    const above = Math.max(fish.y - fish.ringRadius - 16, this.hudTop + HUD_HEIGHT + 14);
+    this.captionText.setPosition(fish.x, above);
+
+    const below = Math.min(fish.y + fish.ringRadius + 18, this.floorY - 14);
+    this.targetText.setPosition(fish.x, below);
+  }
+
+  hideFishLabels() {
+    this.captionText.setVisible(false);
+    this.targetText.setVisible(false);
   }
 
   refreshComboText() {
@@ -321,6 +357,7 @@ export default class GameplayLane {
     this.lastRingRatio = -1;
     fish.setCountdownRatio(1);
     this.showCaptionFor(fish);
+    this.showTargetFor(fish);
 
     return fish;
   }
@@ -335,7 +372,7 @@ export default class GameplayLane {
       // Horizontal drift layered on top of the fish's own idle bob, driven by
       // the current difficulty stage's "current" strength.
       fish.x = fish.baseX + Math.sin((time / 1000) * fish.windSpeed + fish.windOffset) * fish.windAmplitude;
-      this.positionCaption(fish);
+      this.positionFishLabels(fish);
 
       if (this.timedFish && !this.roundOver && !(this.impact && this.impact.frozen)) {
         this.fishTimeRemaining -= delta / 1000;
@@ -387,7 +424,7 @@ export default class GameplayLane {
     if (!fish || fish.resolved) return;
     this.currentFish = null;
     this.wobble = null;
-    this.captionText.setVisible(false);
+    this.hideFishLabels();
     this.stats.missedCount += 1;
     this.breakCombo();
     this.showFeedback(fish.x, fish.y - 40, t('missed'), '#ff5a5a');
@@ -529,7 +566,7 @@ export default class GameplayLane {
 
   resolveCut(fish, polyA, polyB, rawPercent, cutDir, actualDistance = 0) {
     fish.markResolved();
-    this.captionText.setVisible(false);
+    this.hideFishLabels();
     this.currentFish = null;
     this.wobble = null;
 
@@ -862,6 +899,7 @@ export default class GameplayLane {
     if (this.roundOver) return;
     this.roundOver = true;
     this.wobble = null;
+    this.hideFishLabels();
     if (this.currentFish) {
       this.currentFish.markResolved();
       this.currentFish.destroy();
@@ -898,6 +936,7 @@ export default class GameplayLane {
     this.stageText.destroy();
     this.comboText.destroy();
     this.captionText.destroy();
+    this.targetText.destroy();
     if (this.targetBar) this.targetBar.destroy();
   }
 }

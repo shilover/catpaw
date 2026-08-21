@@ -296,8 +296,12 @@ DynamicTexture，世界坐标下的遮罩 Graphics 会落到画面外、碎片�
 
 Phaser 的 **`Text` 每个都自带一张 canvas**，所以高频文字不要现建现毁。`GameplayLane` 里：
 - 飘字反馈走 `acquireFeedback()` 的池子（回收方式是 `setVisible(false)`，不是 `destroy()`）。
-- 鱼名标签是 lane 上**一个**复用的 `captionText`，每帧跟随当前鱼——**不要挪回 `CuttableFish`**，
-  那等于每条鱼建一个 Text。
+- 鱼名标签（上方）和目标百分比（下方）是 lane 上**各一个**复用的 Text，每帧跟随当前鱼——
+  **不要挪回 `CuttableFish`**，那等于每条鱼建两个 Text。
+- 目标百分比同时出现在刻度条和鱼下方，**这是有意的冗余**：刻度条上那个箭头在屏幕顶端，
+  离玩家真正在看的地方（鱼）很远，而这个数字每一刀都要读。
+- 两个标签都必须**钳制在 HUD 底边与水底之间**（`positionFishLabels`）。最大的几个鱼种外圈半径
+  大到让 `getSpawnBounds` 的边距无解、退化成居中，不钳制的话上方标签会压在刻度条上。
 
 ### 合作模式是"两人各切各的"，不是"一人切两人算"
 
