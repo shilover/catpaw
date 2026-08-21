@@ -66,7 +66,8 @@ tinyfishphaser/
 │   │   └── achievements.js   ← 成就定义 + 生涯统计合并（纯函数，有单测）
 │   ├── scenes/            ← 一个场景一个文件，PascalCase
 │   │   ├── SplitScreenSceneBase.js  ← Co-op / Versus 的公共基类（见下文"分屏"）
-│   │   └── DailyChallengeScene.js   ← 继承 ArcModeScene，只换成种子随机源
+│   │   ├── DailyChallengeScene.js   ← 继承 ArcModeScene，只换成种子随机源
+│   │   └── TutorialScene.js         ← 首次进入的分步引导（跑真实 GameplayLane）
 │   ├── objects/           ← 运行时实体：CuttableFish / BonusOctopus / GameplayLane
 │   ├── audio/
 │   │   ├── synth.js       ← 程序化合成全部音效与音乐（启动时渲染成 AudioBuffer）
@@ -74,7 +75,8 @@ tinyfishphaser/
 │   ├── i18n/
 │   │   ├── index.js       ← t() 查表 + 语言切换/持久化
 │   │   └── en.js / zh.js  ← 文案表
-│   ├── ui/                ← createButton / targetBar / backgroundEffects / impact（打击感）
+│   ├── ui/                ← createButton / targetBar / backgroundEffects /
+│   │                          impact（打击感）/ cutGuide（理想切线教学）
 │   └── utils/             ← polygonCut（纯几何）/ pieceTexture（碎片烘焙）/
 │                              paper（纸感后处理）/ share（分享降级链）/
 │                              random（种子随机）/ storage（存档）/ format（mm:ss）
@@ -134,6 +136,25 @@ buffer 的），因此播放走 `this.sound`，自动继承 Phaser 的静音/音
 - 加了新按钮要**两种语言都截图看一遍**：按钮宽度是写死的，中英文宽度差异容易撑破。
 - ⚠️ `GameplayLane.js` 里 `t` 是翻译函数，**不要再用 `t` 当局部变量名**（插值系数、Text 对象
   之类），会静默遮蔽掉它。
+
+### 新手引导与理想切线（`TutorialScene.js` / `ui/cutGuide.js`）
+
+- **理想切线**是这个游戏最核心的教学手段：目标百分比是个抽象数字，玩家很难换算成一条线的位置。
+  切完之后画一条**与玩家实际切线平行**的虚线，标出目标真正在哪。几次之后玩家就学会了。
+- 几何在 `polygonCut.js` 的 `idealChordDistance()`：把椭圆缩放成单位圆后面积比不变、直线仍是直线，
+  而圆上的答案只跟距离有关、与方向无关，再按同一个长度缩放回去。**有单测覆盖 7 个角度 × 5 个
+  目标的往返一致性**，改这块必须让那条测试继续过。
+- 显示时机走三态设置（`auto` / `on` / `off`，默认 `auto`）：`auto` 只在生涯切鱼数少于
+  `GUIDE_AUTO_CUTS` 时显示。完美切割不显示——没什么可教的。
+- **引导用真实的 `GameplayLane` 跑**，只是关掉了单条鱼倒计时（`timedFish: false`）和自动出鱼
+  （`onRoundAdvance: () => {}`），由脚本按"玩家做到了才推进"控制节奏，不用计时器赶人。
+- 首次启动由 `BootScene` 路由到 `Tutorial` 而不是 `MainMenu`；帮助弹窗里可以重玩。
+
+### 弹窗布局（`MainMenuScene.showPopup`）
+
+**按内容自动算高度**，不要再传写死的 `panelHeight`：正文先测量，按钮从底部往上堆，关闭按钮永远
+是最后一行。之前手挑高度的版本在加了两个控件后立刻把它们埋到了关闭按钮下面。中英文正文长度差异
+明显，靠猜必然出事。
 
 ### 打击感（`src/ui/impact.js`）
 

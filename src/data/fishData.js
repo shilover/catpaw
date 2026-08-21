@@ -116,6 +116,12 @@ export const NEXT_FISH_DELAY_MS = 140;
 export const COOP_ADVANCE_MS = 420;
 export const COOP_MISS_ADVANCE_MS = 460;
 
+// --- Teaching -------------------------------------------------------------
+// How many lifetime cuts the ideal-cut line keeps showing for on 'auto'. Long
+// enough to internalise what a given percentage looks like, short enough that
+// it stops being scenery.
+export const GUIDE_AUTO_CUTS = 30;
+
 // --- Impact ---------------------------------------------------------------
 // A perfect cut is the moment the whole game is built around, so it gets a beat
 // of frozen time and a camera kick. Ordinary cuts get neither — if everything

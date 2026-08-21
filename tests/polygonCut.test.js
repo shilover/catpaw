@@ -7,6 +7,7 @@ import {
   cutPolygon,
   pointSegmentDistance,
   horizontalChordOffsetForPercent,
+  idealChordDistance,
 } from '../src/utils/polygonCut.js';
 
 // The cut geometry decides every score in the game, so it is worth pinning down
@@ -139,4 +140,67 @@ test('horizontalChordOffsetForPercent is monotonic and clamped', () => {
   // Out-of-range input is clamped rather than producing nonsense.
   assert.equal(horizontalChordOffsetForPercent(80), horizontalChordOffsetForPercent(50));
   assert.equal(horizontalChordOffsetForPercent(-5), horizontalChordOffsetForPercent(0));
+});
+
+test('idealChordDistance places a chord that really cuts the target share', () => {
+  // This is the teaching feedback's whole claim: "at the angle you swiped, the
+  // right cut was here". If the geometry is off, the game teaches the wrong
+  // lesson, so check it at many angles on a distinctly non-circular ellipse.
+  const rx = 130;
+  const ry = 70;
+  const poly = buildEllipsePolygon(0, 0, rx, ry, 256);
+  const whole = polygonArea(poly);
+
+  for (const angle of [0, 0.3, 0.7854, 1.2, 1.5708, 2.1, 2.9]) {
+    // Swipe direction, and the normal the chord is measured along.
+    const ux = Math.cos(angle);
+    const uy = Math.sin(angle);
+    const nx = -uy;
+    const ny = ux;
+
+    for (const percent of [10, 20, 30, 40, 50]) {
+      const d = idealChordDistance(rx, ry, nx, ny, percent);
+      // A long line through the offset point, running along the swipe.
+      const px = nx * d;
+      const py = ny * d;
+      const p1 = { x: px - ux * 1000, y: py - uy * 1000 };
+      const p2 = { x: px + ux * 1000, y: py + uy * 1000 };
+
+      const halves = cutPolygon(poly, p1, p2);
+      assert.ok(halves, `no cut at angle ${angle}, ${percent}%`);
+      const smaller = Math.min(polygonArea(halves[0]), polygonArea(halves[1]));
+      close(
+        (smaller / whole) * 100, percent, 0.3,
+        `angle ${angle.toFixed(2)} target ${percent}%`,
+      );
+    }
+  }
+});
+
+test('idealChordDistance agrees with the horizontal solver it generalises', () => {
+  const rx = 100;
+  const ry = 60;
+  // A horizontal cut has normal (0, 1), so the distance must come out as
+  // ry * offset — exactly what resolveWithPercent uses.
+  for (const percent of [5, 25, 50]) {
+    close(
+      idealChordDistance(rx, ry, 0, 1, percent),
+      ry * horizontalChordOffsetForPercent(percent),
+      1e-9,
+      `horizontal at ${percent}%`,
+    );
+    // And a vertical cut mirrors it through rx.
+    close(
+      idealChordDistance(rx, ry, 1, 0, percent),
+      rx * horizontalChordOffsetForPercent(percent),
+      1e-9,
+      `vertical at ${percent}%`,
+    );
+  }
+});
+
+test('a 50% ideal chord passes through the centre at any angle', () => {
+  for (const angle of [0, 0.9, 2.4]) {
+    close(idealChordDistance(90, 40, -Math.sin(angle), Math.cos(angle), 50), 0, 1e-9, `angle ${angle}`);
+  }
 });

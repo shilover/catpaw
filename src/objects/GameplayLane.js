@@ -17,6 +17,7 @@ import {
   PERFECT_SHAKE_INTENSITY,
   CUT_SCRAP_COUNT,
   PERFECT_SCRAP_COUNT,
+  GUIDE_AUTO_CUTS,
 } from '../data/fishData.js';
 import CuttableFish from './CuttableFish.js';
 import BonusOctopus from './BonusOctopus.js';
@@ -24,6 +25,8 @@ import TargetBar from '../ui/targetBar.js';
 import { createPieceTexture, destroyPieceTexture, toTextureSpace } from '../utils/pieceTexture.js';
 import { playSfx, playCombo, SFX } from '../audio/audio.js';
 import { spawnPaperScraps } from '../ui/impact.js';
+import { showIdealCutLine } from '../ui/cutGuide.js';
+import { getCutGuideMode, getLifetimeStats } from '../utils/storage.js';
 import { randomInt, pickRandom } from '../utils/random.js';
 import {
   buildEllipsePolygon,
@@ -89,6 +92,11 @@ export default class GameplayLane {
     this.camera = opts.camera || null;
     // Scene-level impact effects, shared by both lanes in split-screen.
     this.impact = opts.impact || null;
+    // The tutorial drives its own pacing and does not want a fish expiring
+    // under the player while they read an instruction.
+    this.timedFish = opts.timedFish !== false;
+    // Forced on for the tutorial; otherwise it follows the player's setting.
+    this.forceCutGuide = !!opts.forceCutGuide;
 
     this.score = 0;
     // Split out of `score` so Co-op can tell shared progress (both lanes resolve
@@ -281,7 +289,7 @@ export default class GameplayLane {
       // the current difficulty stage's "current" strength.
       fish.x = fish.baseX + Math.sin((time / 1000) * fish.windSpeed + fish.windOffset) * fish.windAmplitude;
 
-      if (!this.roundOver && !(this.impact && this.impact.frozen)) {
+      if (this.timedFish && !this.roundOver && !(this.impact && this.impact.frozen)) {
         this.fishTimeRemaining -= delta / 1000;
         const ratio = Phaser.Math.Clamp(this.fishTimeRemaining / this.fishTimeLimit, 0, 1);
         if (Math.abs(ratio - this.lastRingRatio) >= RING_REDRAW_EPSILON) {
@@ -446,8 +454,13 @@ export default class GameplayLane {
     const total = areaA + areaB;
     if (total < 10) return null;
 
+    // Signed distance of the player's line from the fish centre, along the
+    // cut's normal. The teaching overlay needs it to put its ghost line on the
+    // same side of the fish.
+    const actualDistance = (p1.x - cx) * -uy + (p1.y - cy) * ux;
+
     const rawPercent = (Math.min(areaA, areaB) / total) * 100;
-    return this.resolveCut(fish, polyA, polyB, rawPercent, { x: ux, y: uy });
+    return this.resolveCut(fish, polyA, polyB, rawPercent, { x: ux, y: uy }, actualDistance);
   }
 
   // Resolves a fish with an explicit outcome (used by Co-op so the passive side
@@ -466,10 +479,10 @@ export default class GameplayLane {
     const p2 = { x: fish.x + rx + 20, y: cutY };
     const halves = cutPolygon(polygon, p1, p2);
     if (!halves) return null;
-    return this.resolveCut(fish, halves[0], halves[1], rawPercent, { x: 1, y: 0 });
+    return this.resolveCut(fish, halves[0], halves[1], rawPercent, { x: 1, y: 0 }, cutY - fish.y);
   }
 
-  resolveCut(fish, polyA, polyB, rawPercent, cutDir) {
+  resolveCut(fish, polyA, polyB, rawPercent, cutDir, actualDistance = 0) {
     fish.markResolved();
     this.currentFish = null;
     this.wobble = null;
@@ -511,6 +524,16 @@ export default class GameplayLane {
 
     playSfx(this.scene, isPerfect ? SFX.PERFECT : SFX.CUT);
     this.playCutImpact(fish, cutDir, isPerfect);
+
+    // Nothing to teach when they nailed it — the ghost line would sit exactly
+    // on top of their own cut.
+    if (!isPerfect && this.shouldShowCutGuide()) {
+      const { rx, ry } = fish.getRadii();
+      showIdealCutLine(this.scene, {
+        cx: fish.x, cy: fish.y, rx, ry, cutDir, actualDistance,
+        targetPercent: fish.targetPercent,
+      });
+    }
     if (keepsCombo) {
       this.refreshComboText();
       if (this.combo >= COMBO_MIN_TO_SHOW) playCombo(this.scene, this.combo - COMBO_MIN_TO_SHOW);
@@ -567,6 +590,15 @@ export default class GameplayLane {
     }
   }
 
+  shouldShowCutGuide() {
+    if (this.forceCutGuide) return true;
+    const mode = getCutGuideMode();
+    if (mode === 'on') return true;
+    if (mode === 'off') return false;
+    // 'auto': help until the player has cut enough fish to have the feel for it.
+    return (getLifetimeStats().cutCount || 0) < GUIDE_AUTO_CUTS;
+  }
+
   spawnPieces(fish, polyA, polyB, cutDir) {
     const textureKey = 'fish-' + fish.fishType.key;
     const size = fish.fishType.size;
@@ -615,6 +647,24 @@ export default class GameplayLane {
   }
 
   // --- bonus octopus --------------------------------------------------------
+
+  // Normally an octopus is the reward for a perfect cut. The tutorial needs to
+  // teach the tap before it can reasonably ask for perfection, so it can
+  // summon one directly.
+  spawnTutorialOctopus() {
+    if (this.roundOver || this.activeOctopus) return;
+    this.activeOctopus = new BonusOctopus(this.scene, {
+      x: this.regionX + this.regionW / 2,
+      y: this.regionY + this.regionH / 2,
+      floorY: this.floorY + 80,
+      sizeMultiplier: this.fishScaleMultiplier,
+      onCollect: (score, ox, oy) => {
+        this.activeOctopus = null;
+        this.collectOctopus(score, ox, oy);
+      },
+      onExpire: () => { this.activeOctopus = null; },
+    });
+  }
 
   tryCollectOctopusAt(worldPoint) {
     if (this.activeOctopus && this.activeOctopus.containsPoint(worldPoint.x, worldPoint.y)) {

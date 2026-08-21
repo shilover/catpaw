@@ -4,6 +4,7 @@ import {
   SAND_HEIGHT, FISH_TEXTURE_W, FISH_TEXTURE_H, FISH_SUPERSAMPLE, PAPER_SCRAP_KEY,
 } from '../data/displayConfig.js';
 import { initAudio } from '../audio/audio.js';
+import { isTutorialDone } from '../utils/storage.js';
 import { paperize } from '../utils/paper.js';
 
 export default class BootScene extends Phaser.Scene {
@@ -27,7 +28,9 @@ export default class BootScene extends Phaser.Scene {
     // at boot. Cheap enough to do inline; there is nothing to download.
     initAudio(this);
 
-    this.scene.start('MainMenu');
+    // First run goes straight into the tutorial; the menu means little before
+    // you know what the game asks of you.
+    this.scene.start(isTutorialDone() ? 'MainMenu' : 'Tutorial');
   }
 
   buildBackground() {
