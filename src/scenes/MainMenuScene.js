@@ -14,6 +14,8 @@ import {
   getCutGuideMode, setCutGuideMode, CUT_GUIDE_MODES,
 } from '../utils/storage.js';
 import { dailyKey } from '../utils/random.js';
+import { getTotalStars } from '../utils/storage.js';
+import { TOTAL_STARS } from '../data/levels.js';
 
 // Mirrors BPUI_MainMenu: background_main, title_00, button_arc / button_vs,
 // button_setting_music / button_setting_Contactme / button_setting_list.
@@ -65,7 +67,7 @@ export default class MainMenuScene extends Phaser.Scene {
 
     // Four side-by-side mode buttons — makes better use of the widescreen
     // layout than a stacked portrait column.
-    const buttonY = h * 0.58;
+    const buttonY = h * 0.62;
     const modes = [
       { x: -390, key: 'arcMode', tag: 'arcTagline', color: 0xff8a3d, scene: 'ArcMode' },
       {
@@ -96,6 +98,16 @@ export default class MainMenuScene extends Phaser.Scene {
         align: 'center', wordWrap: { width: 250 },
       }).setOrigin(0.5);
     });
+
+    // Levels sit above the endless modes: they are where a new player is meant
+    // to go first, and the star count is the one number that shows progress.
+    createButton(this, w / 2, h * 0.42, 280, 58, t('levels'), { color: 0x2f9fe0, fontSize: 24 })
+      .on('pointerup', () => this.goTo('LevelSelect'));
+    this.add.text(w / 2, h * 0.42 + 42, t('starsProgress', {
+      got: getTotalStars(), total: TOTAL_STARS,
+    }), {
+      fontFamily: FONT_FAMILY, fontSize: '13px', color: '#ffd23f',
+    }).setOrigin(0.5);
 
     this.buildSettingsRow(w, h);
 

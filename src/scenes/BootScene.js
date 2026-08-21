@@ -300,17 +300,18 @@ export default class BootScene extends Phaser.Scene {
     g.fillStyle(fish.finColor, 1);
     g.lineStyle(5, fish.finColor, 1);
     g.beginPath();
-    g.moveTo(cx - 44, cy);
-    g.lineTo(cx - 66, cy + 10);
+    g.moveTo(cx - 56, cy);
+    g.lineTo(cx - 74, cy + 8);
     g.strokePath();
-    // wide diamond "wings"
+    // Wide, flat diamond wings — a manta ray should read as the wide species,
+    // and its cut ellipse (bodyW/bodyH in fishData) is measured against this.
     g.fillStyle(fish.bodyColor, 1);
-    g.fillTriangle(cx - 44, cy, cx + 20, cy - 40, cx + 44, cy);
-    g.fillTriangle(cx - 44, cy, cx + 20, cy + 40, cx + 44, cy);
-    g.fillEllipse(cx, cy, 60, 30);
+    g.fillTriangle(cx - 56, cy, cx + 20, cy - 32, cx + 56, cy);
+    g.fillTriangle(cx - 56, cy, cx + 20, cy + 32, cx + 56, cy);
+    g.fillEllipse(cx, cy, 76, 28);
     // top highlight pattern
     g.fillStyle(fish.stripeColor, 0.65);
-    g.fillEllipse(cx + 4, cy, 34, 14);
+    g.fillEllipse(cx + 6, cy, 44, 13);
     // eyes near the front edge
     g.fillStyle(0xffffff, 1);
     g.fillCircle(cx + 30, cy - 6, 7);

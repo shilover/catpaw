@@ -5,50 +5,60 @@
 export const CUT_FISH_TYPES = [
   {
     key: 'clown',
+    bodyW: 104,
+    bodyH: 76,
     spawnWeight: 10,
     name: 'Clownfish',
     baseScore: 10,
-    size: 4.0,
+    size: 3.99,
     bodyColor: 0xff7a29,
     stripeColor: 0xffffff,
     finColor: 0xff5a00,
   },
   {
     key: 'cute',
+    bodyW: 92,
+    bodyH: 72,
     spawnWeight: 7,
     name: 'CuteFish',
     baseScore: 15,
-    size: 3.8,
+    size: 4.36,
     bodyColor: 0x53c7ff,
     stripeColor: 0xffe3f2,
     finColor: 0x2f9fe0,
   },
   {
     key: 'puffer',
+    bodyW: 96,
+    bodyH: 96,
     spawnWeight: 5,
     name: 'Pufferfish',
     baseScore: 20,
-    size: 3.6,
+    size: 3.70,
     bodyColor: 0xffe066,
     stripeColor: 0xfff8d9,
     finColor: 0xe0b400,
   },
   {
     key: 'angel',
+    bodyW: 84,
+    bodyH: 104,
     spawnWeight: 5,
     name: 'Angelfish',
     baseScore: 18,
-    size: 4.1,
+    size: 3.80,
     bodyColor: 0xffd6e8,
     stripeColor: 0x9b59b6,
     finColor: 0xff8fc7,
   },
   {
     key: 'ray',
+    bodyW: 116,
+    bodyH: 68,
     spawnWeight: 3,
     name: 'Manta Ray',
     baseScore: 25,
-    size: 4.2,
+    size: 4.00,
     bodyColor: 0x5b6ee1,
     stripeColor: 0x8fa1ff,
     finColor: 0x3d4bb0,
@@ -57,6 +67,8 @@ export const CUT_FISH_TYPES = [
 
 export const OCTOPUS_BONUS = {
   key: 'octopus',
+  bodyW: 92,
+  bodyH: 92,
   name: 'Octopus',
   bonusScore: 50,
   size: 3.6,
@@ -67,6 +79,32 @@ export const OCTOPUS_BONUS = {
 
 // Per-fish cut target: random 10%-50% in 5% steps (the smaller piece's area
 // can never exceed 50% of the whole fish, by definition).
+// --- Body shape ------------------------------------------------------------
+// `bodyW`/`bodyH` are the cut ellipse in design units, measured against what
+// BootScene actually draws for each species.
+//
+// They used to be one shared value: the ellipse came from the texture, which is
+// 140x96 for everybody, so a round pufferfish and a flat manta ray were exactly
+// the same geometry problem wearing different pictures. The areas are kept
+// within a few percent of each other so no species is cheaper to cut than
+// another — only the *shape* of the judgement changes.
+export function bodyRadii(fishType) {
+  const size = fishType.size || 1;
+  return {
+    rx: ((fishType.bodyW || FISH_DESIGN_W) * 0.5) * size,
+    ry: ((fishType.bodyH || FISH_DESIGN_H) * 0.5) * size,
+  };
+}
+
+export function bodyAspect(fishType) {
+  return (fishType.bodyW || FISH_DESIGN_W) / (fishType.bodyH || FISH_DESIGN_H);
+}
+
+// Fallback for anything without explicit dimensions, matching the old shared
+// ellipse (140 x 96 texture at the 0.42 inset the cut maths used).
+const FISH_DESIGN_W = 140 * 0.84;
+const FISH_DESIGN_H = 96 * 0.84;
+
 // --- Species value ---------------------------------------------------------
 // `baseScore` is what a species is worth relative to the others. It is turned
 // into a multiplier against a reference so the numbers on screen stay in the
@@ -82,14 +120,21 @@ export function fishValueMultiplier(fishType) {
 
 // Weighted pick, so rarity actually means something. `random` is injectable to
 // keep this testable.
-export function pickWeightedFish(random = Math.random) {
-  const total = CUT_FISH_TYPES.reduce((sum, f) => sum + (f.spawnWeight || 1), 0);
+export function pickWeightedFish(random = Math.random, pool = CUT_FISH_TYPES) {
+  const list = pool && pool.length ? pool : CUT_FISH_TYPES;
+  const total = list.reduce((sum, f) => sum + (f.spawnWeight || 1), 0);
   let roll = random() * total;
-  for (const fish of CUT_FISH_TYPES) {
+  for (const fish of list) {
     roll -= (fish.spawnWeight || 1);
     if (roll < 0) return fish;
   }
-  return CUT_FISH_TYPES[CUT_FISH_TYPES.length - 1];
+  return list[list.length - 1];
+}
+
+export function speciesByKeys(keys) {
+  if (!keys || !keys.length) return CUT_FISH_TYPES;
+  const found = keys.map((k) => CUT_FISH_TYPES.find((f) => f.key === k)).filter(Boolean);
+  return found.length ? found : CUT_FISH_TYPES;
 }
 
 export const TARGET_PERCENT_MIN = 10;
