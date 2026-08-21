@@ -16,6 +16,14 @@ export default defineConfig({
   // With Vite's default of '/', every one of those serves a blank page.
   base: './',
 
+  // This project always serves on 8095. `strictPort` is the part that makes
+  // that true: without it Vite quietly moves to the next free port when 8095 is
+  // taken, which is exactly the situation where a fixed port matters.
+  server: {
+    port: 8095,
+    strictPort: true,
+  },
+
   resolve: {
     alias: {
       // The Arcade Physics entry point, which drops Matter.js. This game only

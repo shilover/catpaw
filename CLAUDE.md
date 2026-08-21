@@ -353,7 +353,7 @@ Phaser 的 **`Text` 每个都自带一张 canvas**，所以高频文字不要现
 
 ```bash
 npm install       # 安装依赖
-npm run dev       # Vite 开发服务器
+npm run dev       # Vite 开发服务器，固定 http://localhost:8095
 npm run build     # 生产构建 → dist/
 npm run preview   # 本地预览生产构建
 npm test          # 单元测试（Node 内置 runner，零额外依赖）
@@ -373,12 +373,18 @@ CI（`.github/workflows/ci.yml`）在每次 push / PR 上跑 `npm test` + `npm r
 改了任何影响画面的东西，**跑起来截图看**，不要靠读代码想象结果：
 
 ```bash
-npm run dev          # 起服务（默认 http://localhost:5173）
+npm run dev          # 起服务，固定 http://localhost:8095
 ```
+
+**端口固定在 8095**（`vite.config.js` 里 `strictPort: true`）。被占用时会直接报错，而不是悄悄
+换到 8096 —— 固定端口的意义就在这里。自动化脚本一律指向 8095，不要再假设 Vite 的默认端口。
 
 然后用 Playwright 驱动截图（chromium 已装在本机 `~/AppData/Local/ms-playwright`）。
 `main.js` 在开发模式下会把 game 实例挂到 `window.__PHASER_GAME__`，可以用它跳场景、注入状态、
 读取分数来做自动化验证。**这个调试出口只在 `import.meta.env.DEV` 下存在，不会进生产包。**
+
+⚠️ **`game.isRunning` 为真不等于可玩**：BootScene 还在逐帧生成、加载遮罩还盖着画布。
+自动化脚本要等 `!document.getElementById('boot-splash')`，那才是真正的就绪信号。
 
 ---
 
