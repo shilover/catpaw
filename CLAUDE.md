@@ -62,7 +62,8 @@ tinyfishphaser/
 │   ├── main.js            ← Phaser.Game 配置 + 场景注册数组
 │   ├── data/
 │   │   ├── displayConfig.js  ← 画布尺寸、分屏布局、贴图尺寸等**所有跨文件共享的常量**
-│   │   └── fishData.js       ← 鱼种表、目标百分比规则、评分公式、难度分段
+│   │   ├── fishData.js       ← 鱼种表（含价值/稀有度）、目标规则、评分公式、连击、难度分段
+│   │   └── achievements.js   ← 成就定义 + 生涯统计合并（纯函数，有单测）
 │   ├── scenes/            ← 一个场景一个文件，PascalCase
 │   │   └── SplitScreenSceneBase.js  ← Co-op / Versus 的公共基类（见下文"分屏"）
 │   ├── objects/           ← 运行时实体：CuttableFish / BonusOctopus / GameplayLane
@@ -74,7 +75,8 @@ tinyfishphaser/
 │   │   └── en.js / zh.js  ← 文案表
 │   ├── ui/                ← createButton / targetBar / backgroundEffects
 │   └── utils/             ← polygonCut（纯几何）/ pieceTexture（碎片烘焙）/
-│                              paper（纸感后处理）/ storage（存档）/ format（mm:ss）
+│                              paper（纸感后处理）/ share（分享降级链）/
+│                              storage（存档）/ format（mm:ss）
 tests/                     ← Node 内置 test runner，只覆盖零 Phaser 依赖的纯逻辑
 .github/workflows/ci.yml   ← 每次 push / PR 跑 npm test + npm run build（不含部署）
 ```
@@ -141,6 +143,24 @@ buffer 的），因此播放走 `this.sound`，自动继承 Phaser 的静音/音
 
 ⚠️ **倾斜角必须保持很小**：切割判定用的是精灵**未旋转**的半径算出来的椭圆，角度一大，画出来的
 形状就会跟被判定的形状对不上。
+
+### 鱼种差异化与成就
+
+- **鱼种价值**：`baseScore` 通过 `fishValueMultiplier()` 换算成倍率（以 `FISH_VALUE_REFERENCE = 15`
+  为基准），和连击倍率一起乘进得分。**稀有度是这笔交易的另一半**——`spawnWeight` 让值钱的鱼出得更少，
+  出怪一律走 `pickWeightedFish()`，不要再用 `GetRandom(CUT_FISH_TYPES)`。
+- **鱼名是玩家可见的**，必须走 i18n（`fish_<key>` 键）。
+- **成就**（`data/achievements.js`）：`check(round, lifetime)` 必须是**纯函数**，会在每次回合结束
+  和成就列表每次重绘时调用。带 `goal` 的必须同时给 `progress`，否则列表里的进度条是空的。
+  新增成就 = 加一条定义 + 在 `en.js`/`zh.js` 各加 `ach_<id>` 与 `ach_<id>_desc` 两行。
+- 生涯统计与已解锁 id 存在 `tinyfish.lifetime` / `tinyfish.achievements`，`mergeLifetime()`
+  **不修改传入对象**（有单测钉住）。
+
+### 分享（`src/utils/share.js`）
+
+三级降级：`navigator.share` 带截图 → `navigator.share` 纯文本 → 剪贴板。每一级都有 try/catch，
+用户取消（`AbortError`）不算失败。截图有 1.5 秒兜底超时，避免 `snapshot` 不回调时卡住分享。
+调用方只拿到 `'shared' | 'copied' | 'failed'` 三种结果去弹 toast。
 
 ### 数据表（`src/data/fishData.js`）
 

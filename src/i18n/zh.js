@@ -29,6 +29,16 @@ export default {
     + '对战模式里，完美一刀会给对手泼墨，\n'
     + '差一档则会让对手的鱼晃动。',
 
+  // Fish species
+  fish_clown: '小丑鱼',
+  fish_cute: '萌鱼',
+  fish_puffer: '河豚',
+  fish_angel: '神仙鱼',
+  fish_ray: '魔鬼鱼',
+  fish_octopus: '章鱼',
+
+  fishCaption: '{name}  {value} 倍',
+
   // In-round HUD
   score: '得分：{score}',
   combo: '连击 x{count}   {multiplier} 倍',
@@ -72,4 +82,40 @@ export default {
   statMissed: '漏切',
   statOctopus: '章鱼',
   statBestCombo: '最高连击',
+
+  // Achievements
+  achievements: '成就',
+  achievementUnlocked: '解锁成就',
+  achievementsProgress: '已解锁 {done} / {total}',
+  noAchievements: '还没有解锁任何成就 —— 去切几条鱼吧！',
+  share: '分享',
+  shareCopied: '成绩已复制到剪贴板！',
+  shareFailed: '当前设备无法分享。',
+  shareTitle: '小鱼一刀',
+  shareBody: '我在《小鱼一刀》拿到了 {score} 分！\n完美切割：{perfect} 次 · 最高连击：{combo} 连',
+  shareBodyVersus: '《小鱼一刀》对战：一号 {scoreA} 比 二号 {scoreB}',
+  ach_firstCut: '第一刀',
+  ach_firstCut_desc: '切开第一条鱼。',
+  ach_firstPerfect: '正中红心',
+  ach_firstPerfect_desc: '完成一次完美切割。',
+  ach_perfectionist: '完美主义',
+  ach_perfectionist_desc: '累计完成 25 次完美切割。',
+  ach_combo5: '渐入佳境',
+  ach_combo5_desc: '达成 5 连击。',
+  ach_combo12: '势不可挡',
+  ach_combo12_desc: '达成 12 连击。',
+  ach_octopusHunter: '章鱼猎人',
+  ach_octopusHunter_desc: '累计抓到 15 只奖励章鱼。',
+  ach_thousandaire: '千分达成',
+  ach_thousandaire_desc: '单局得分达到 1000。',
+  ach_flawless: '一条不漏',
+  ach_flawless_desc: '完成一局 8 条鱼以上且零漏切。',
+  ach_marineBiologist: '海洋生物学家',
+  ach_marineBiologist_desc: '每个鱼种都至少切过一次。',
+  ach_riptide: '激流勇进',
+  ach_riptide_desc: '坚持到激流阶段。',
+  ach_teamPlayer: '默契搭档',
+  ach_teamPlayer_desc: '完成一局合作模式。',
+  ach_champion: '冠军',
+  ach_champion_desc: '赢下一场对战。',
 };

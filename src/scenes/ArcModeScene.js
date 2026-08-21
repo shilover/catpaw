@@ -94,7 +94,12 @@ export default class ArcModeScene extends Phaser.Scene {
     this.lane.endRound();
 
     this.time.delayedCall(400, () => {
-      this.scene.start('FinalScore', { mode: 'solo', score: this.lane.score, stats: this.lane.stats });
+      this.scene.start('FinalScore', {
+        mode: 'solo',
+        score: this.lane.score,
+        stats: this.lane.stats,
+        reachedStage: this.lane.stage.minElapsed,
+      });
     });
   }
 

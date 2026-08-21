@@ -57,6 +57,7 @@ export default class VersusModeScene extends SplitScreenSceneBase {
       scoreB: this.laneB.score,
       statsA: this.laneA.stats,
       statsB: this.laneB.stats,
+      reachedStage: this.laneA.stage.minElapsed,
     });
   }
 }

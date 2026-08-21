@@ -3,13 +3,17 @@ import { createButton } from '../ui/createButton.js';
 import { addUnderwaterBackground, addBubbles } from '../ui/backgroundEffects.js';
 import {
   getHighScore, saveHighScore, getCoopHighScore, saveCoopHighScore, pushScoreListEntry,
+  getLifetimeStats, saveLifetimeStats, getUnlockedAchievements, saveUnlockedAchievements,
 } from '../utils/storage.js';
+import { mergeLifetime, evaluateAchievements } from '../data/achievements.js';
+import { shareResult } from '../utils/share.js';
 import { LANDSCAPE_W, LANDSCAPE_H, FONT_FAMILY } from '../data/displayConfig.js';
 import { startMusic } from '../audio/audio.js';
 import { t } from '../i18n/index.js';
 
 const EMPTY_STATS = {
   cutCount: 0, perfectCount: 0, nearPerfectCount: 0, missedCount: 0, octopusCount: 0, bestCombo: 0,
+  speciesCut: {},
 };
 
 // Total score, high-score comparison, a breakdown of the round, plus replay /
@@ -28,6 +32,7 @@ export default class FinalScoreScene extends Phaser.Scene {
     this.scoreB = data.scoreB || 0;
     this.statsA = data.statsA || EMPTY_STATS;
     this.statsB = data.statsB || EMPTY_STATS;
+    this.reachedStage = data.reachedStage || 0;
   }
 
   create() {
@@ -42,8 +47,98 @@ export default class FinalScoreScene extends Phaser.Scene {
     addBubbles(this, 12);
     startMusic(this);
 
+    // Record the round before drawing, so anything unlocked can be shown here
+    // rather than only turning up the next time the menu is opened.
+    this.newAchievements = this.recordRound();
+
     if (this.mode === 'versus') this.buildVersus(w, h);
     else this.buildSoloOrCoop(w, h);
+
+    this.buildShareButton(w, h);
+    this.buildToast(w, h);
+    if (this.newAchievements.length) this.announceAchievements(w, h);
+  }
+
+  // Folds this round into the lifetime totals, then checks what that unlocked.
+  // In Versus both halves count as play, and the winner's stats are the ones
+  // that represent the round.
+  recordRound() {
+    const round = this.mode === 'versus'
+      ? {
+        ...(this.scoreA >= this.scoreB ? this.statsA : this.statsB),
+        score: Math.max(this.scoreA, this.scoreB),
+        mode: this.mode,
+        won: this.scoreA !== this.scoreB,
+        reachedStage: this.reachedStage,
+      }
+      : {
+        ...this.stats, score: this.finalScore, mode: this.mode, reachedStage: this.reachedStage,
+      };
+
+    const lifetime = mergeLifetime(getLifetimeStats(), round);
+    saveLifetimeStats(lifetime);
+
+    const unlocked = getUnlockedAchievements();
+    const fresh = evaluateAchievements(round, lifetime, unlocked);
+    if (fresh.length) saveUnlockedAchievements(unlocked.concat(fresh));
+    return fresh;
+  }
+
+  // Newly earned achievements slide in along the left, one under the other.
+  announceAchievements(w, h) {
+    this.newAchievements.slice(0, 3).forEach((id, i) => {
+      const y = 150 + i * 62;
+      const box = this.add.container(-320, y);
+      const bg = this.add.graphics();
+      bg.fillStyle(0x1c4b2a, 0.95);
+      bg.fillRoundedRect(0, -24, 300, 52, 12);
+      bg.lineStyle(2, 0x8affc1, 0.9);
+      bg.strokeRoundedRect(0, -24, 300, 52, 12);
+      const head = this.add.text(14, -12, t('achievementUnlocked'), {
+        fontFamily: FONT_FAMILY, fontSize: '10px', fontStyle: 'bold', color: '#8affc1',
+      }).setOrigin(0, 0.5);
+      const name = this.add.text(14, 10, t('ach_' + id), {
+        fontFamily: FONT_FAMILY, fontSize: '17px', fontStyle: 'bold', color: '#ffffff',
+      }).setOrigin(0, 0.5);
+      box.add([bg, head, name]);
+      box.setDepth(60);
+      this.tweens.add({ targets: box, x: 18, duration: 420, delay: 300 + i * 220, ease: 'Back.easeOut' });
+    });
+  }
+
+  buildShareButton(w, h) {
+    createButton(this, w - 110, h - 50, 170, 54, t('share'), { color: 0x2f9fe0, fontSize: 20 })
+      .on('pointerup', () => this.doShare());
+  }
+
+  async doShare() {
+    if (this.sharing) return;
+    this.sharing = true;
+    const payload = this.mode === 'versus'
+      ? { mode: 'versus', scoreA: this.scoreA, scoreB: this.scoreB }
+      : {
+        mode: this.mode,
+        score: this.finalScore,
+        perfect: this.stats.perfectCount || 0,
+        combo: this.stats.bestCombo || 0,
+      };
+    const outcome = await shareResult(this, payload);
+    this.sharing = false;
+    if (outcome === 'copied') this.showToast(t('shareCopied'));
+    else if (outcome === 'failed') this.showToast(t('shareFailed'));
+  }
+
+  buildToast(w, h) {
+    this.toast = this.add.text(w / 2, h - 150, '', {
+      fontFamily: FONT_FAMILY, fontSize: '20px', fontStyle: 'bold', color: '#ffffff',
+      backgroundColor: '#00121fcc', padding: { x: 16, y: 10 },
+    }).setOrigin(0.5).setDepth(70).setAlpha(0);
+  }
+
+  showToast(message) {
+    this.toast.setText(message).setAlpha(1);
+    this.tweens.killTweensOf(this.toast);
+    this.tweens.add({ targets: this.toast, alpha: 0, delay: 1600, duration: 400 });
   }
 
   buildSoloOrCoop(w, h) {

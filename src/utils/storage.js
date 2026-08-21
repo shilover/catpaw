@@ -10,6 +10,8 @@ const SCORE_LIST_KEY = 'tinyfish.scoreList';
 const MUSIC_KEY = 'tinyfish.musicEnabled';
 const SFX_KEY = 'tinyfish.sfxEnabled';
 const LANG_KEY = 'tinyfish.lang';
+const LIFETIME_KEY = 'tinyfish.lifetime';
+const ACHIEVEMENTS_KEY = 'tinyfish.achievements';
 const MAX_SCORE_LIST = 10;
 
 function readRaw(key) {
@@ -103,4 +105,36 @@ export function getLang() {
 
 export function setLang(lang) {
   writeRaw(LANG_KEY, String(lang));
+}
+
+// --- achievements ---------------------------------------------------------
+// Running totals across every round ever played, plus the ids already earned.
+// Both are read through the same guarded helpers as everything else here: a
+// corrupt or unreadable value degrades to "nothing unlocked yet" rather than
+// taking the results screen down with it.
+
+export function getLifetimeStats() {
+  try {
+    const parsed = JSON.parse(readRaw(LIFETIME_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveLifetimeStats(stats) {
+  writeRaw(LIFETIME_KEY, JSON.stringify(stats));
+}
+
+export function getUnlockedAchievements() {
+  try {
+    const parsed = JSON.parse(readRaw(ACHIEVEMENTS_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveUnlockedAchievements(ids) {
+  writeRaw(ACHIEVEMENTS_KEY, JSON.stringify(ids));
 }

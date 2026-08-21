@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
 import {
-  CUT_FISH_TYPES,
   TARGET_PERCENT_OPTIONS,
   TARGET_PERCENT_STEP,
   snapToGrid,
   scoreForDiff,
   getStageForElapsed,
   comboMultiplier,
+  fishValueMultiplier,
+  pickWeightedFish,
   COMBO_KEEP_DIFF,
   COMBO_MIN_TO_SHOW,
 } from '../data/fishData.js';
@@ -80,6 +81,8 @@ export default class GameplayLane {
     this.bonusScore = 0;
     this.stats = {
       cutCount: 0, perfectCount: 0, nearPerfectCount: 0, missedCount: 0, octopusCount: 0, bestCombo: 0,
+      // key -> how many of that species were cut this round.
+      speciesCut: {},
     };
     // Consecutive cuts landed within COMBO_KEEP_DIFF of their target. Drives the
     // score multiplier, the HUD counter and the rising combo sound.
@@ -226,7 +229,7 @@ export default class GameplayLane {
   spawnFish(forcedFishType, forcedTarget) {
     if (this.roundOver) return null;
 
-    const baseFishType = forcedFishType || Phaser.Utils.Array.GetRandom(CUT_FISH_TYPES);
+    const baseFishType = forcedFishType || pickWeightedFish();
     const fishType = this.fishScaleMultiplier !== 1
       ? { ...baseFishType, size: baseFishType.size * this.fishScaleMultiplier }
       : baseFishType;
@@ -469,10 +472,14 @@ export default class GameplayLane {
       this.stats.bestCombo = Math.max(this.stats.bestCombo, this.combo);
     }
     const multiplier = keepsCombo ? comboMultiplier(this.combo) : 1;
-    const points = Math.round(scoreForDiff(diff) * multiplier);
+    // Accuracy sets the base, the species scales it, the streak scales it again.
+    const speciesValue = fishValueMultiplier(fish.fishType);
+    const points = Math.round(scoreForDiff(diff) * speciesValue * multiplier);
 
     this.score += points;
     this.stats.cutCount += 1;
+    const speciesKey = fish.fishType.key;
+    this.stats.speciesCut[speciesKey] = (this.stats.speciesCut[speciesKey] || 0) + 1;
     if (isPerfect) this.stats.perfectCount += 1;
     else if (isNearPerfect) this.stats.nearPerfectCount += 1;
     this.scoreText.setText(t('score', { score: this.score }));

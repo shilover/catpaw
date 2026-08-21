@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { CUT_FISH_TYPES, TARGET_PERCENT_OPTIONS } from '../data/fishData.js';
+import { TARGET_PERCENT_OPTIONS, pickWeightedFish } from '../data/fishData.js';
 import GameplayLane from '../objects/GameplayLane.js';
 import SplitScreenSceneBase from './SplitScreenSceneBase.js';
 import { SPLIT_FISH_SCALE } from '../data/displayConfig.js';
@@ -40,7 +40,7 @@ export default class CoopModeScene extends SplitScreenSceneBase {
   spawnSharedFish() {
     if (this.roundOver) return;
     this.advancing = false;
-    const fishType = Phaser.Utils.Array.GetRandom(CUT_FISH_TYPES);
+    const fishType = pickWeightedFish();
     const target = Phaser.Utils.Array.GetRandom(TARGET_PERCENT_OPTIONS);
     this.laneA.spawnFish(fishType, target);
     this.laneB.spawnFish(fishType, target);
@@ -86,6 +86,8 @@ export default class CoopModeScene extends SplitScreenSceneBase {
       octopusCount: this.laneA.stats.octopusCount + this.laneB.stats.octopusCount,
     };
 
-    this.scene.start('FinalScore', { mode: 'coop', score: teamScore, stats });
+    this.scene.start('FinalScore', {
+      mode: 'coop', score: teamScore, stats, reachedStage: this.laneA.stage.minElapsed,
+    });
   }
 }
