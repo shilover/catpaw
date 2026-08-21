@@ -15,6 +15,11 @@ function summaryText(payload) {
   if (payload.mode === 'versus') {
     return t('shareBodyVersus', { scoreA: payload.scoreA, scoreB: payload.scoreB });
   }
+  // A daily score is only comparable against the same day's fish, so the date
+  // is part of the claim.
+  if (payload.mode === 'daily') {
+    return t('shareBodyDaily', { date: payload.date, score: payload.score });
+  }
   return t('shareBody', {
     score: payload.score,
     perfect: payload.perfect,

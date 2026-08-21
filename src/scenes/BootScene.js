@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { CUT_FISH_TYPES, OCTOPUS_BONUS } from '../data/fishData.js';
-import { SAND_HEIGHT, FISH_TEXTURE_W, FISH_TEXTURE_H, FISH_SUPERSAMPLE } from '../data/displayConfig.js';
+import {
+  SAND_HEIGHT, FISH_TEXTURE_W, FISH_TEXTURE_H, FISH_SUPERSAMPLE, PAPER_SCRAP_KEY,
+} from '../data/displayConfig.js';
 import { initAudio } from '../audio/audio.js';
 import { paperize } from '../utils/paper.js';
 
@@ -14,6 +16,7 @@ export default class BootScene extends Phaser.Scene {
     this.buildBubble();
     this.buildSpark();
     this.buildPaw();
+    this.buildPaperScrap();
 
     CUT_FISH_TYPES.forEach((fish) => {
       this.buildFishTexture(`fish-${fish.key}`, fish);
@@ -96,6 +99,26 @@ export default class BootScene extends Phaser.Scene {
     g.generateTexture('paw', 46, 40);
     g.destroy();
     paperize(this.textures.get('paw'), { seed: 9, grain: 0.1, tear: 2 });
+  }
+
+  // A single torn flake, drawn white so it can be tinted to whichever fish it
+  // came off. Deliberately irregular: a rectangle reads as confetti, not paper.
+  buildPaperScrap() {
+    const w = 22;
+    const h = 16;
+    const g = this.make.graphics({ x: 0, y: 0 }, false);
+    g.fillStyle(0xffffff, 1);
+    g.beginPath();
+    g.moveTo(1, 5);
+    g.lineTo(9, 1);
+    g.lineTo(20, 4);
+    g.lineTo(17, 12);
+    g.lineTo(6, 15);
+    g.closePath();
+    g.fillPath();
+    g.generateTexture(PAPER_SCRAP_KEY, w, h);
+    g.destroy();
+    paperize(this.textures.get(PAPER_SCRAP_KEY), { seed: 41, grain: 0.16, tear: 1, edgeShade: 0.18 });
   }
 
   buildFishTexture(key, fish) {

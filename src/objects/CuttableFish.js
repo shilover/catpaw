@@ -11,13 +11,13 @@ import {
 // timer, and drives this object from its own update(): nothing in here runs on a
 // timer of its own.
 export default class CuttableFish extends Phaser.GameObjects.Container {
-  constructor(scene, fishType, { x, y }) {
+  constructor(scene, fishType, { x, y, random = Math.random }) {
     super(scene, x, y);
     this.scene = scene;
     this.fishType = fishType;
     this.baseY = y;
     this.resolved = false;
-    this.bobOffset = Math.random() * Math.PI * 2;
+    this.bobOffset = random() * Math.PI * 2;
 
     const spriteScale = fishSpriteScale(fishType.size);
 
@@ -32,7 +32,7 @@ export default class CuttableFish extends Phaser.GameObjects.Container {
     this.ring = scene.add.graphics();
     this.add([this.ring, this.shadow, this.sprite]);
 
-    this.tilt = Phaser.Math.FloatBetween(-PAPER_TILT_DEGREES, PAPER_TILT_DEGREES);
+    this.tilt = (random() * 2 - 1) * PAPER_TILT_DEGREES;
     this.shadow.setAngle(this.tilt);
     this.sprite.setAngle(this.tilt);
 

@@ -65,6 +65,7 @@ export const FONT_FAMILY = '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei"
 // the body ellipse from the sprite's unrotated radii, so a large angle would
 // let the drawn shape drift away from the shape being scored.
 export const PAPER_TILT_DEGREES = 4;
+export const PAPER_SCRAP_KEY = 'paper-scrap';
 export const PAPER_SHADOW_OFFSET = 1.6;
 export const PAPER_SHADOW_ALPHA = 0.28;
 

@@ -10,12 +10,21 @@ import {
   pickWeightedFish,
   COMBO_KEEP_DIFF,
   COMBO_MIN_TO_SHOW,
+  CUT_SETTLE_MS,
+  NEXT_FISH_DELAY_MS,
+  PERFECT_HIT_STOP_MS,
+  PERFECT_SHAKE_MS,
+  PERFECT_SHAKE_INTENSITY,
+  CUT_SCRAP_COUNT,
+  PERFECT_SCRAP_COUNT,
 } from '../data/fishData.js';
 import CuttableFish from './CuttableFish.js';
 import BonusOctopus from './BonusOctopus.js';
 import TargetBar from '../ui/targetBar.js';
 import { createPieceTexture, destroyPieceTexture, toTextureSpace } from '../utils/pieceTexture.js';
 import { playSfx, playCombo, SFX } from '../audio/audio.js';
+import { spawnPaperScraps } from '../ui/impact.js';
+import { randomInt, pickRandom } from '../utils/random.js';
 import {
   buildEllipsePolygon,
   cutPolygon,
@@ -73,6 +82,13 @@ export default class GameplayLane {
     // the scene can spawn one shared fish for both lanes at once instead.
     this.onRoundAdvance = opts.onRoundAdvance || null;
     this.fishScaleMultiplier = opts.fishScaleMultiplier || 1;
+    // Everything that shapes the challenge draws from here, so a seeded source
+    // makes the whole round reproducible (see the Daily Challenge).
+    this.random = opts.random || Math.random;
+    // Which camera to kick on a perfect cut; split-screen lanes each own one.
+    this.camera = opts.camera || null;
+    // Scene-level impact effects, shared by both lanes in split-screen.
+    this.impact = opts.impact || null;
 
     this.score = 0;
     // Split out of `score` so Co-op can tell shared progress (both lanes resolve
@@ -178,8 +194,8 @@ export default class GameplayLane {
     const minY = this.hudTop + HUD_HEIGHT + approxRadius + margin;
     const maxY = this.floorY - approxRadius - margin;
 
-    const x = minX < maxX ? Phaser.Math.Between(minX, maxX) : this.regionX + this.regionW / 2;
-    const y = minY < maxY ? Phaser.Math.Between(minY, maxY) : this.regionY + this.regionH / 2;
+    const x = minX < maxX ? randomInt(this.random, minX, maxX) : this.regionX + this.regionW / 2;
+    const y = minY < maxY ? randomInt(this.random, minY, maxY) : this.regionY + this.regionH / 2;
     return { x, y };
   }
 
@@ -229,18 +245,18 @@ export default class GameplayLane {
   spawnFish(forcedFishType, forcedTarget) {
     if (this.roundOver) return null;
 
-    const baseFishType = forcedFishType || pickWeightedFish();
+    const baseFishType = forcedFishType || pickWeightedFish(this.random);
     const fishType = this.fishScaleMultiplier !== 1
       ? { ...baseFishType, size: baseFishType.size * this.fishScaleMultiplier }
       : baseFishType;
-    const target = forcedTarget !== undefined ? forcedTarget : Phaser.Utils.Array.GetRandom(TARGET_PERCENT_OPTIONS);
+    const target = forcedTarget !== undefined ? forcedTarget : pickRandom(this.random, TARGET_PERCENT_OPTIONS);
     const { x, y } = this.getSpawnBounds(fishType);
 
-    const fish = new CuttableFish(this.scene, fishType, { x, y });
+    const fish = new CuttableFish(this.scene, fishType, { x, y, random: this.random });
     fish.targetPercent = target;
     fish.windAmplitude = this.stage.windAmplitude;
     fish.windSpeed = this.stage.windSpeed;
-    fish.windOffset = Math.random() * Math.PI * 2;
+    fish.windOffset = this.random() * Math.PI * 2;
     fish.baseX = x;
     this.gameLayer.add(fish);
     this.currentFish = fish;
@@ -265,7 +281,7 @@ export default class GameplayLane {
       // the current difficulty stage's "current" strength.
       fish.x = fish.baseX + Math.sin((time / 1000) * fish.windSpeed + fish.windOffset) * fish.windAmplitude;
 
-      if (!this.roundOver) {
+      if (!this.roundOver && !(this.impact && this.impact.frozen)) {
         this.fishTimeRemaining -= delta / 1000;
         const ratio = Phaser.Math.Clamp(this.fishTimeRemaining / this.fishTimeLimit, 0, 1);
         if (Math.abs(ratio - this.lastRingRatio) >= RING_REDRAW_EPSILON) {
@@ -329,7 +345,7 @@ export default class GameplayLane {
       this.onRoundAdvance();
       return;
     }
-    this.scene.time.delayedCall(300, () => this.spawnFish());
+    this.scene.time.delayedCall(NEXT_FISH_DELAY_MS, () => this.spawnFish());
   }
 
   // --- input ----------------------------------------------------------------
@@ -494,6 +510,7 @@ export default class GameplayLane {
     this.showFeedback(fish.x, fish.y - 50, label, isPerfect ? '#ffd23f' : '#8affc1');
 
     playSfx(this.scene, isPerfect ? SFX.PERFECT : SFX.CUT);
+    this.playCutImpact(fish, cutDir, isPerfect);
     if (keepsCombo) {
       this.refreshComboText();
       if (this.combo >= COMBO_MIN_TO_SHOW) playCombo(this.scene, this.combo - COMBO_MIN_TO_SHOW);
@@ -523,8 +540,31 @@ export default class GameplayLane {
     const result = { diff, isPerfect, isNearPerfect, points, snapped, targetPercent: fish.targetPercent, rawPercent };
     this.onCutResolved(result);
 
-    this.scene.time.delayedCall(700, () => this.afterFishResolved());
+    this.scene.time.delayedCall(CUT_SETTLE_MS, () => this.afterFishResolved());
     return result;
+  }
+
+  // The blade landing, felt rather than read: scraps off every cut, plus a beat
+  // of frozen time and a camera kick when it was perfect.
+  playCutImpact(fish, cutDir, isPerfect) {
+    spawnPaperScraps(this.scene, {
+      x: fish.x,
+      y: fish.y,
+      tint: fish.fishType.bodyColor,
+      cutDir,
+      count: isPerfect ? PERFECT_SCRAP_COUNT : CUT_SCRAP_COUNT,
+      spread: isPerfect ? 190 : 140,
+      scale: Math.max(0.7, this.fishScaleMultiplier * 1.6),
+    });
+
+    if (isPerfect && this.impact) {
+      this.impact.punch({
+        hitStop: PERFECT_HIT_STOP_MS,
+        shake: PERFECT_SHAKE_MS,
+        intensity: PERFECT_SHAKE_INTENSITY,
+        camera: this.camera,
+      });
+    }
   }
 
   spawnPieces(fish, polyA, polyB, cutDir) {

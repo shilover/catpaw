@@ -16,10 +16,12 @@ export default class VersusModeScene extends SplitScreenSceneBase {
   createLanes(regionA, regionB) {
     this.laneA = new GameplayLane(this, {
       ...regionA, laneId: 'vs-a', fishScaleMultiplier: SPLIT_FISH_SCALE,
+      camera: this.cameras.main, impact: this.impact,
       onCutResolved: (result) => this.onLaneResolved(this.laneB, result),
     });
     this.laneB = new GameplayLane(this, {
       ...regionB, laneId: 'vs-b', fishScaleMultiplier: SPLIT_FISH_SCALE,
+      camera: this.camB, impact: this.impact,
       onCutResolved: (result) => this.onLaneResolved(this.laneA, result),
     });
   }

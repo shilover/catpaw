@@ -84,6 +84,15 @@ export default {
   statOctopus: 'Octopus',
   statBestCombo: 'Best combo',
 
+  // Daily challenge
+  dailyMode: 'DAILY',
+  dailyTagline: 'Same fish for everyone, today only',
+  dailyBadge: 'Daily {date}',
+  dailyBest: 'Best today: {score}',
+  dailyResult: 'DAILY CHALLENGE',
+  newDailyBest: '★ NEW DAILY BEST ★',
+  dailyBestLabel: 'Best today',
+
   // Achievements
   achievements: 'Achievements',
   achievementUnlocked: 'ACHIEVEMENT UNLOCKED',
@@ -94,6 +103,7 @@ export default {
   shareFailed: 'Could not share on this device.',
   shareTitle: 'Tiny Fish',
   shareBody: 'I scored {score} in Tiny Fish!\nPerfect cuts: {perfect} · Best combo: x{combo}',
+  shareBodyDaily: 'Tiny Fish Daily {date}: {score} points!',
   shareBodyVersus: 'Tiny Fish match: P1 {scoreA} vs P2 {scoreB}',
   ach_firstCut: 'First Cut',
   ach_firstCut_desc: 'Slice your first fish.',
