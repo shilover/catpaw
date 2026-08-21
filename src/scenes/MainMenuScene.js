@@ -5,8 +5,9 @@ import {
   getHighScore, getCoopHighScore, getScoreList,
   isMusicEnabled, setMusicEnabled, isSfxEnabled, setSfxEnabled,
 } from '../utils/storage.js';
-import { LANDSCAPE_W, LANDSCAPE_H, FISH_SUPERSAMPLE } from '../data/displayConfig.js';
+import { LANDSCAPE_W, LANDSCAPE_H, FISH_SUPERSAMPLE, FONT_FAMILY } from '../data/displayConfig.js';
 import { startMusic, syncMusic, playSfx, SFX } from '../audio/audio.js';
+import { t, nextLanguage, setLanguage, languageLabel } from '../i18n/index.js';
 
 // Mirrors BPUI_MainMenu: background_main, title_00, button_arc / button_vs,
 // button_setting_music / button_setting_Contactme / button_setting_list.
@@ -26,8 +27,8 @@ export default class MainMenuScene extends Phaser.Scene {
 
     this.add.image(w / 2, h * 0.13, 'paw').setScale(1.7).setAlpha(0.9);
 
-    this.add.text(w / 2, h * 0.29, 'TINY FISH', {
-      fontFamily: 'Arial, sans-serif',
+    this.add.text(w / 2, h * 0.29, t('title'), {
+      fontFamily: FONT_FAMILY,
       fontSize: '64px',
       fontStyle: 'bold',
       color: '#ffffff',
@@ -35,23 +36,23 @@ export default class MainMenuScene extends Phaser.Scene {
       strokeThickness: 9,
     }).setOrigin(0.5);
 
-    this.add.text(w / 2, h * 0.29 + 46, 'Cat Paw Club', {
-      fontFamily: 'Arial, sans-serif',
+    this.add.text(w / 2, h * 0.29 + 46, t('studio'), {
+      fontFamily: FONT_FAMILY,
       fontSize: '20px',
       fontStyle: 'italic',
       color: '#bfe9ff',
     }).setOrigin(0.5);
 
-    this.add.text(w / 2, h * 0.29 + 78, `High Score: ${getHighScore()}`, {
-      fontFamily: 'Arial, sans-serif',
+    this.add.text(w / 2, h * 0.29 + 78, t('highScore', { score: getHighScore() }), {
+      fontFamily: FONT_FAMILY,
       fontSize: '20px',
       color: '#ffe38a',
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
     // Co-op keeps its own best, so both are worth showing.
-    this.add.text(w / 2, h * 0.29 + 104, `Team Best: ${getCoopHighScore()}`, {
-      fontFamily: 'Arial, sans-serif',
+    this.add.text(w / 2, h * 0.29 + 104, t('teamBest', { score: getCoopHighScore() }), {
+      fontFamily: FONT_FAMILY,
       fontSize: '15px',
       color: '#8affc1',
     }).setOrigin(0.5);
@@ -63,28 +64,28 @@ export default class MainMenuScene extends Phaser.Scene {
     const coopX = w / 2;
     const vsX = w / 2 + 300;
 
-    createButton(this, arcX, buttonY, 260, 84, 'ARC MODE', {
+    createButton(this, arcX, buttonY, 260, 84, t('arcMode'), {
       color: 0xff8a3d,
       fontSize: 28,
     }).on('pointerup', () => this.goTo('ArcMode'));
-    this.add.text(arcX, buttonY + 56, 'Solo', {
-      fontFamily: 'Arial, sans-serif', fontSize: '14px', color: '#cccccc',
+    this.add.text(arcX, buttonY + 56, t('arcTagline'), {
+      fontFamily: FONT_FAMILY, fontSize: '14px', color: '#cccccc',
     }).setOrigin(0.5);
 
-    createButton(this, coopX, buttonY, 260, 84, 'CO-OP', {
+    createButton(this, coopX, buttonY, 260, 84, t('coopMode'), {
       color: 0x2fbf71,
       fontSize: 28,
     }).on('pointerup', () => this.goTo('CoopMode'));
-    this.add.text(coopX, buttonY + 56, '2P — same fish, cut together', {
-      fontFamily: 'Arial, sans-serif', fontSize: '14px', color: '#cccccc',
+    this.add.text(coopX, buttonY + 56, t('coopTagline'), {
+      fontFamily: FONT_FAMILY, fontSize: '14px', color: '#cccccc',
     }).setOrigin(0.5);
 
-    createButton(this, vsX, buttonY, 260, 84, 'VERSUS', {
+    createButton(this, vsX, buttonY, 260, 84, t('versusMode'), {
       color: 0xff5a5a,
       fontSize: 28,
     }).on('pointerup', () => this.goTo('VersusMode'));
-    this.add.text(vsX, buttonY + 56, '2P — highest score wins', {
-      fontFamily: 'Arial, sans-serif', fontSize: '14px', color: '#cccccc',
+    this.add.text(vsX, buttonY + 56, t('versusTagline'), {
+      fontFamily: FONT_FAMILY, fontSize: '14px', color: '#cccccc',
     }).setOrigin(0.5);
 
     this.buildSettingsRow(w, h);
@@ -110,18 +111,26 @@ export default class MainMenuScene extends Phaser.Scene {
     // Toggling used to `scene.restart()`, rebuilding the background, bubbles and
     // every decorative fish purely to recolour one icon; now only the button
     // itself is rebuilt, and the change is applied to the audio immediately.
-    this.buildToggle(w / 2 - 135, y, isMusicEnabled, (on) => {
+    this.buildToggle(w / 2 - 180, y, isMusicEnabled, (on) => {
       setMusicEnabled(on);
       syncMusic(this);
     }, '♪');
 
-    this.buildToggle(w / 2 - 45, y, isSfxEnabled, setSfxEnabled, '🔊');
+    this.buildToggle(w / 2 - 90, y, isSfxEnabled, setSfxEnabled, '🔊');
 
-    createButton(this, w / 2 + 45, y, 64, 64, 'ℹ', { color: 0x2f9fe0, fontSize: 26 }).on('pointerup', () => {
+    // Language is the one setting that really does change every string on
+    // screen, so rebuilding the scene is the honest way to apply it.
+    createButton(this, w / 2, y, 96, 64, languageLabel(), { color: 0xff8a3d, fontSize: 18 })
+      .on('pointerup', () => {
+        setLanguage(nextLanguage());
+        this.scene.restart();
+      });
+
+    createButton(this, w / 2 + 90, y, 64, 64, 'ℹ', { color: 0x2f9fe0, fontSize: 26 }).on('pointerup', () => {
       this.showContactPopup(w, h);
     });
 
-    createButton(this, w / 2 + 135, y, 64, 64, '≡', { color: 0x8a5cff, fontSize: 26 }).on('pointerup', () => {
+    createButton(this, w / 2 + 180, y, 64, 64, '≡', { color: 0x8a5cff, fontSize: 26 }).on('pointerup', () => {
       this.showScoreListPopup(w, h);
     });
   }
@@ -149,9 +158,9 @@ export default class MainMenuScene extends Phaser.Scene {
     this.showPopup(
       w,
       h,
-      'Cat Paw Club',
-      'Swipe across the fish to slice it!\nMatch the target % on the bar —\nthe closer, the higher your score.\nA perfect cut pops a bonus octopus.\n\nCo-op & Versus split the screen\ntop/bottom for two players.\nIn Versus, a perfect cut inks the\nopponent; a near-miss wobbles\ntheir fish.\n\nA Phaser 4 tribute build.',
-      360,
+      t('studio'),
+      t('howToPlay'),
+      380,
     );
   }
 
@@ -161,12 +170,12 @@ export default class MainMenuScene extends Phaser.Scene {
     // rows would otherwise be ambiguous.
     const body = list.length
       ? list.slice(0, 5).map((entry, i) => {
-        const mode = entry.mode === 'coop' ? 'Co-op' : 'Solo';
+        const mode = entry.mode === 'coop' ? t('modeCoop') : t('modeSolo');
         const when = entry.date ? new Date(entry.date).toLocaleDateString() : '';
         return `${i + 1}.  ${entry.score}   ${mode}  ${when}`;
       }).join('\n')
-      : 'No runs yet — go catch some fish!';
-    this.showPopup(w, h, 'Recent Scores', body);
+      : t('noRuns');
+    this.showPopup(w, h, t('recentScores'), body);
   }
 
   showPopup(w, h, title, body, panelHeight = 280) {
@@ -180,14 +189,14 @@ export default class MainMenuScene extends Phaser.Scene {
     panel.strokeRoundedRect(w / 2 - 190, top, 380, panelHeight, 20);
 
     const titleText = this.add.text(w / 2, top + 36, title, {
-      fontFamily: 'Arial, sans-serif', fontSize: '24px', fontStyle: 'bold', color: '#ffffff',
+      fontFamily: FONT_FAMILY, fontSize: '24px', fontStyle: 'bold', color: '#ffffff',
     }).setOrigin(0.5);
     const bodyText = this.add.text(w / 2, top + panelHeight / 2 + 6, body, {
-      fontFamily: 'Arial, sans-serif', fontSize: '16px', color: '#dff2ff', align: 'center', lineSpacing: 6,
+      fontFamily: FONT_FAMILY, fontSize: '16px', color: '#dff2ff', align: 'center', lineSpacing: 6,
     }).setOrigin(0.5);
 
     overlay.add([dim, panel, titleText, bodyText]);
-    const closeBtn = createButton(this, w / 2, top + panelHeight - 40, 140, 50, 'Close', { color: 0xff8a3d });
+    const closeBtn = createButton(this, w / 2, top + panelHeight - 40, 140, 50, t('close'), { color: 0xff8a3d });
     overlay.add(closeBtn);
     closeBtn.on('pointerup', () => overlay.destroy());
     dim.on('pointerdown', () => overlay.destroy());

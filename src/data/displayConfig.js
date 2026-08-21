@@ -52,5 +52,21 @@ export function fishSpriteScale(size) {
 // Breathing room between a fish and its countdown ring.
 export const RING_PADDING = 8;
 
+// One font stack for the whole game. Plain 'Arial, sans-serif' has no Chinese
+// glyphs, so a zh player would get tofu boxes or whatever the browser
+// substitutes; the CJK faces are listed first and Arial remains the Latin
+// fallback.
+export const FONT_FAMILY = '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", '
+  + '"Noto Sans CJK SC", "Source Han Sans SC", Arial, sans-serif';
+
+// --- paper look -----------------------------------------------------------
+// Cut-outs are laid on the surface by hand, so they sit slightly askew and
+// throw a soft shadow. The tilt is deliberately tiny: the cut maths measures
+// the body ellipse from the sprite's unrotated radii, so a large angle would
+// let the drawn shape drift away from the shape being scored.
+export const PAPER_TILT_DEGREES = 4;
+export const PAPER_SHADOW_OFFSET = 1.6;
+export const PAPER_SHADOW_ALPHA = 0.28;
+
 // Height of the sea floor strip drawn into the solo background texture.
 export const SAND_HEIGHT = 22;

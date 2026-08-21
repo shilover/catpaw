@@ -69,10 +69,14 @@ tinyfishphaser/
 │   ├── audio/
 │   │   ├── synth.js       ← 程序化合成全部音效与音乐（启动时渲染成 AudioBuffer）
 │   │   └── audio.js       ← 播放层：开关、重触发节流、音乐生命周期
+│   ├── i18n/
+│   │   ├── index.js       ← t() 查表 + 语言切换/持久化
+│   │   └── en.js / zh.js  ← 文案表
 │   ├── ui/                ← createButton / targetBar / backgroundEffects
 │   └── utils/             ← polygonCut（纯几何）/ pieceTexture（碎片烘焙）/
-│                              storage（localStorage 存档）/ format（mm:ss）
+│                              paper（纸感后处理）/ storage（存档）/ format（mm:ss）
 tests/                     ← Node 内置 test runner，只覆盖零 Phaser 依赖的纯逻辑
+.github/workflows/ci.yml   ← 每次 push / PR 跑 npm test + npm run build（不含部署）
 ```
 
 **没有** `public/` 目录、**没有** TypeScript、**没有** React、**没有**统一的 scene-key 常量文件 ——
@@ -115,6 +119,28 @@ buffer 的），因此播放走 `this.sound`，自动继承 Phaser 的静音/音
 - 音乐由 Sound Manager 持有而非场景，跨场景不中断；`startMusic()` 幂等，每个场景 create 里调一次即可。
 - 无音频环境（`NoAudioSoundManager`）下全部静默降级，**不要假设 `scene.sound.context` 一定存在**。
 - 新增音效 = 在 `synth.js` 写一个 `makeXxx(ctx)` + 登记进 `SFX` 与 `factories`。
+
+### 所有玩家可见的文字都走 i18n
+
+**场景里不许出现任何字面量文案**，一律 `t('key')`（`src/i18n/index.js`）。新增文案 = 在
+`en.js` 和 `zh.js` **同时**加一行；缺翻译会回退英文再回退 key 本身，不会显示 undefined。
+占位符写成 `{name}`，用 `t('score', { score: 12 })` 传参。
+
+- 字体统一走 `displayConfig.js` 的 `FONT_FAMILY`（CJK 字体在前，Arial 兜底）——
+  **不要写死 `'Arial, sans-serif'`**，那样中文会变成豆腐块。
+- 加了新按钮要**两种语言都截图看一遍**：按钮宽度是写死的，中英文宽度差异容易撑破。
+- ⚠️ `GameplayLane.js` 里 `t` 是翻译函数，**不要再用 `t` 当局部变量名**（插值系数、Text 对象
+  之类），会静默遮蔽掉它。
+
+### 纸感（`src/utils/paper.js`）
+
+美术风格是"手工剪纸"：`paperize()` 在启动时对 `generateTexture` 产出的画布做后处理——纤维颗粒、
+压边暗角、以及带噪声的毛边侵蚀。切开时 `pieceTexture.js` 会沿**刀口**描一条纸芯色的线
+（`PAPER_CORE`），只描刀口那条边、不描鱼自身的毛边轮廓——两者靠"边中点到椭圆中心的归一化半径"
+区分。鱼还会带一个偏移阴影和几度随机倾斜（`PAPER_TILT_DEGREES`）。
+
+⚠️ **倾斜角必须保持很小**：切割判定用的是精灵**未旋转**的半径算出来的椭圆，角度一大，画出来的
+形状就会跟被判定的形状对不上。
 
 ### 数据表（`src/data/fishData.js`）
 
@@ -200,6 +226,9 @@ npm run build     # 生产构建 → dist/
 npm run preview   # 本地预览生产构建
 npm test          # 单元测试（Node 内置 runner，零额外依赖）
 ```
+
+CI（`.github/workflows/ci.yml`）在每次 push / PR 上跑 `npm test` + `npm run build`。
+**它不做任何部署**，只回答"代码还能不能编、测试还过不过"。
 
 **测试用 Node 自带的 `node --test`，没有装 Vitest / Jest，也没有 lint / type-check** —— 不要假设
 这些命令存在，也不要在没有明确要求的情况下擅自引入整套工具链。

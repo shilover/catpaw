@@ -9,6 +9,7 @@ const COOP_HIGH_SCORE_KEY = 'tinyfish.coopHighScore';
 const SCORE_LIST_KEY = 'tinyfish.scoreList';
 const MUSIC_KEY = 'tinyfish.musicEnabled';
 const SFX_KEY = 'tinyfish.sfxEnabled';
+const LANG_KEY = 'tinyfish.lang';
 const MAX_SCORE_LIST = 10;
 
 function readRaw(key) {
@@ -92,4 +93,14 @@ export function isSfxEnabled() {
 
 export function setSfxEnabled(enabled) {
   writeRaw(SFX_KEY, String(enabled));
+}
+
+// Null when the player has never chosen; the i18n layer then follows the
+// browser's own language instead of forcing English on everyone.
+export function getLang() {
+  return readRaw(LANG_KEY);
+}
+
+export function setLang(lang) {
+  writeRaw(LANG_KEY, String(lang));
 }

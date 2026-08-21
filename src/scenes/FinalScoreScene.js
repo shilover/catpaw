@@ -4,8 +4,9 @@ import { addUnderwaterBackground, addBubbles } from '../ui/backgroundEffects.js'
 import {
   getHighScore, saveHighScore, getCoopHighScore, saveCoopHighScore, pushScoreListEntry,
 } from '../utils/storage.js';
-import { LANDSCAPE_W, LANDSCAPE_H } from '../data/displayConfig.js';
+import { LANDSCAPE_W, LANDSCAPE_H, FONT_FAMILY } from '../data/displayConfig.js';
 import { startMusic } from '../audio/audio.js';
+import { t } from '../i18n/index.js';
 
 const EMPTY_STATS = {
   cutCount: 0, perfectCount: 0, nearPerfectCount: 0, missedCount: 0, octopusCount: 0, bestCombo: 0,
@@ -53,68 +54,71 @@ export default class FinalScoreScene extends Phaser.Scene {
     const isNewHigh = isCoop ? saveCoopHighScore(this.finalScore) : saveHighScore(this.finalScore);
     pushScoreListEntry(this.finalScore, this.mode);
 
-    const title = isCoop ? 'TEAM RESULT' : 'ROUND OVER';
+    const title = isCoop ? t('teamResult') : t('roundOver');
     this.add.text(w / 2, 70, title, {
-      fontFamily: 'Arial, sans-serif', fontSize: '28px', fontStyle: 'bold', color: '#bfe9ff',
+      fontFamily: FONT_FAMILY, fontSize: '28px', fontStyle: 'bold', color: '#bfe9ff',
     }).setOrigin(0.5);
 
     this.add.text(w / 2, 128, String(this.finalScore), {
-      fontFamily: 'Arial, sans-serif', fontSize: '58px', fontStyle: 'bold', color: '#ffe38a',
+      fontFamily: FONT_FAMILY, fontSize: '58px', fontStyle: 'bold', color: '#ffe38a',
       stroke: '#0a2a4a', strokeThickness: 6,
     }).setOrigin(0.5);
 
     if (isNewHigh) {
-      const badge = this.add.text(w / 2, 178, isCoop ? '★ NEW TEAM BEST ★' : '★ NEW HIGH SCORE ★', {
-        fontFamily: 'Arial, sans-serif', fontSize: '18px', fontStyle: 'bold', color: '#ffd23f',
+      const badge = this.add.text(w / 2, 178, isCoop ? t('newTeamBest') : t('newHighScore'), {
+        fontFamily: FONT_FAMILY, fontSize: '18px', fontStyle: 'bold', color: '#ffd23f',
       }).setOrigin(0.5);
       this.tweens.add({ targets: badge, scale: 1.15, duration: 500, yoyo: true, repeat: -1 });
     } else {
-      const label = isCoop ? 'Team Best' : 'High Score';
-      this.add.text(w / 2, 178, label + ': ' + Math.max(previousHigh, this.finalScore), {
-        fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#dff2ff',
+      const best = Math.max(previousHigh, this.finalScore);
+      const label = isCoop ? t('teamBest', { score: best }) : t('highScore', { score: best });
+      this.add.text(w / 2, 178, label, {
+        fontFamily: FONT_FAMILY, fontSize: '15px', color: '#dff2ff',
       }).setOrigin(0.5);
     }
 
     this.buildBreakdown(w / 2, 220, this.stats);
 
     const replayTarget = isCoop ? 'CoopMode' : 'ArcMode';
-    createButton(this, w / 2, h - 120, 240, 62, 'Replay', { color: 0xff8a3d, fontSize: 26 })
+    createButton(this, w / 2, h - 120, 240, 62, t('replay'), { color: 0xff8a3d, fontSize: 26 })
       .on('pointerup', () => this.scene.start(replayTarget));
 
-    createButton(this, w / 2, h - 50, 240, 56, 'Main Menu', { color: 0x8a5cff, fontSize: 20 })
+    createButton(this, w / 2, h - 50, 240, 56, t('mainMenu'), { color: 0x8a5cff, fontSize: 20 })
       .on('pointerup', () => this.scene.start('MainMenu'));
   }
 
   buildVersus(w, h) {
     const winner = this.scoreA === this.scoreB ? 'draw' : (this.scoreA > this.scoreB ? 'A' : 'B');
 
-    this.add.text(w / 2, 56, 'MATCH RESULT', {
-      fontFamily: 'Arial, sans-serif', fontSize: '24px', fontStyle: 'bold', color: '#bfe9ff',
+    this.add.text(w / 2, 56, t('matchResult'), {
+      fontFamily: FONT_FAMILY, fontSize: '24px', fontStyle: 'bold', color: '#bfe9ff',
     }).setOrigin(0.5);
 
-    const resultLabel = winner === 'draw' ? "IT'S A DRAW!" : 'PLAYER ' + (winner === 'A' ? 1 : 2) + ' WINS!';
+    const resultLabel = winner === 'draw'
+      ? t('draw')
+      : t('playerWins', { player: winner === 'A' ? 1 : 2 });
     const resultText = this.add.text(w / 2, 96, resultLabel, {
-      fontFamily: 'Arial, sans-serif', fontSize: '26px', fontStyle: 'bold', color: '#ffd23f',
+      fontFamily: FONT_FAMILY, fontSize: '26px', fontStyle: 'bold', color: '#ffd23f',
     }).setOrigin(0.5);
     this.tweens.add({ targets: resultText, scale: 1.1, duration: 500, yoyo: true, repeat: -1 });
 
     const colW = w / 2 - 30;
-    this.buildPlayerColumn(20, 140, colW, 'PLAYER 1', this.scoreA, this.statsA, winner === 'A');
-    this.buildPlayerColumn(w / 2 + 10, 140, colW, 'PLAYER 2', this.scoreB, this.statsB, winner === 'B');
+    this.buildPlayerColumn(20, 140, colW, t('playerLabel', { player: 1 }), this.scoreA, this.statsA, winner === 'A');
+    this.buildPlayerColumn(w / 2 + 10, 140, colW, t('playerLabel', { player: 2 }), this.scoreB, this.statsB, winner === 'B');
 
-    createButton(this, w / 2, h - 116, 240, 60, 'Rematch', { color: 0xff8a3d, fontSize: 24 })
+    createButton(this, w / 2, h - 116, 240, 60, t('rematch'), { color: 0xff8a3d, fontSize: 24 })
       .on('pointerup', () => this.scene.start('VersusMode'));
 
-    createButton(this, w / 2, h - 48, 240, 54, 'Main Menu', { color: 0x8a5cff, fontSize: 18 })
+    createButton(this, w / 2, h - 48, 240, 54, t('mainMenu'), { color: 0x8a5cff, fontSize: 18 })
       .on('pointerup', () => this.scene.start('MainMenu'));
   }
 
   buildPlayerColumn(x, y, colW, label, score, stats, isWinner) {
     this.add.text(x + colW / 2, y, (isWinner ? '👑 ' : '') + label, {
-      fontFamily: 'Arial, sans-serif', fontSize: '18px', fontStyle: 'bold', color: isWinner ? '#ffd23f' : '#ffffff',
+      fontFamily: FONT_FAMILY, fontSize: '18px', fontStyle: 'bold', color: isWinner ? '#ffd23f' : '#ffffff',
     }).setOrigin(0.5);
     this.add.text(x + colW / 2, y + 40, String(score), {
-      fontFamily: 'Arial, sans-serif', fontSize: '38px', fontStyle: 'bold', color: '#ffe38a',
+      fontFamily: FONT_FAMILY, fontSize: '38px', fontStyle: 'bold', color: '#ffe38a',
     }).setOrigin(0.5);
 
     this.buildBreakdown(x + colW / 2, y + 78, stats, colW - 20);
@@ -122,12 +126,12 @@ export default class FinalScoreScene extends Phaser.Scene {
 
   buildBreakdown(centerX, y, stats, width = 340) {
     const rows = [
-      ['Fish cut', stats.cutCount],
-      ['Perfect', stats.perfectCount],
-      ['Close', stats.nearPerfectCount],
-      ['Missed', stats.missedCount],
-      ['Octopus', stats.octopusCount],
-      ['Best combo', stats.bestCombo || 0],
+      [t('statFishCut'), stats.cutCount],
+      [t('statPerfect'), stats.perfectCount],
+      [t('statClose'), stats.nearPerfectCount],
+      [t('statMissed'), stats.missedCount],
+      [t('statOctopus'), stats.octopusCount],
+      [t('statBestCombo'), stats.bestCombo || 0],
     ];
     const rowH = 34;
 
@@ -138,10 +142,10 @@ export default class FinalScoreScene extends Phaser.Scene {
     rows.forEach(([label, value], i) => {
       const rowY = y + 14 + i * rowH + rowH / 2;
       this.add.text(centerX - width / 2 + 18, rowY, label, {
-        fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#ffffff',
+        fontFamily: FONT_FAMILY, fontSize: '15px', color: '#ffffff',
       }).setOrigin(0, 0.5);
       this.add.text(centerX + width / 2 - 18, rowY, String(value), {
-        fontFamily: 'Arial, sans-serif', fontSize: '16px', fontStyle: 'bold', color: '#ffe38a',
+        fontFamily: FONT_FAMILY, fontSize: '16px', fontStyle: 'bold', color: '#ffe38a',
       }).setOrigin(1, 0.5);
     });
   }

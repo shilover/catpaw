@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { createButton } from '../ui/createButton.js';
-import { SPLIT_Y } from '../data/displayConfig.js';
+import { SPLIT_Y, FONT_FAMILY } from '../data/displayConfig.js';
 import { playSfx, SFX } from '../audio/audio.js';
+import { t } from '../i18n/index.js';
 
 const BTN_W = 210;
 const BTN_H = 52;
@@ -69,14 +70,14 @@ export default class PauseScene extends Phaser.Scene {
     panel.lineStyle(3, 0xffffff, 0.5);
     panel.strokeRoundedRect(cx - panelW / 2, cy - panelH / 2, panelW, panelH, 24);
 
-    this.add.text(cx, cy - panelH / 2 + 44, 'PAUSED', {
-      fontFamily: 'Arial, sans-serif', fontSize: '30px', fontStyle: 'bold', color: '#ffffff',
+    this.add.text(cx, cy - panelH / 2 + 44, t('paused'), {
+      fontFamily: FONT_FAMILY, fontSize: '30px', fontStyle: 'bold', color: '#ffffff',
     }).setOrigin(0.5);
 
     const rows = [
-      { label: 'Resume', color: 0x2fbf71, action: () => this.resume() },
-      { label: 'Restart', color: 0xff8a3d, action: () => this.restart() },
-      { label: 'Main Menu', color: 0x8a5cff, action: () => this.toMenu() },
+      { label: t('resume'), color: 0x2fbf71, action: () => this.resume() },
+      { label: t('restart'), color: 0xff8a3d, action: () => this.restart() },
+      { label: t('mainMenu'), color: 0x8a5cff, action: () => this.toMenu() },
     ];
 
     rows.forEach((row, i) => {

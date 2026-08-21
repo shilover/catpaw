@@ -3,7 +3,7 @@ import { ROUND_TIME_LIMIT } from '../data/fishData.js';
 import GameplayLane from '../objects/GameplayLane.js';
 import { addUnderwaterBackground, addBubbles } from '../ui/backgroundEffects.js';
 import { createButton } from '../ui/createButton.js';
-import { LANDSCAPE_W, LANDSCAPE_H, HEADER_HEIGHT } from '../data/displayConfig.js';
+import { LANDSCAPE_W, LANDSCAPE_H, HEADER_HEIGHT, FONT_FAMILY } from '../data/displayConfig.js';
 import { formatClock } from '../utils/format.js';
 import { startMusic, playSfx, SFX } from '../audio/audio.js';
 
@@ -41,7 +41,7 @@ export default class ArcModeScene extends Phaser.Scene {
     this.lane.start();
 
     this.roundTimeText = this.add.text(this.w - 76, HEADER_HEIGHT / 2, formatClock(ROUND_TIME_LIMIT), {
-      fontFamily: 'Arial, sans-serif', fontSize: '18px', fontStyle: 'bold', color: '#ffffff',
+      fontFamily: FONT_FAMILY, fontSize: '18px', fontStyle: 'bold', color: '#ffffff',
     }).setOrigin(1, 0.5).setDepth(50);
 
     this.pauseButton = createButton(this, this.w - 34, HEADER_HEIGHT / 2, 48, 32, 'II', { color: 0x8a5cff, fontSize: 14 });
