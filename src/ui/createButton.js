@@ -3,6 +3,7 @@
 
 import Phaser from 'phaser';
 import { playSfx, SFX } from '../audio/audio.js';
+import { FONT_FAMILY } from '../data/displayConfig.js';
 
 export function createButton(scene, x, y, w, h, label, { color = 0x2f9fe0, textColor = '#ffffff', fontSize = 24, disabled = false } = {}) {
   const container = scene.add.container(x, y);
@@ -20,7 +21,7 @@ export function createButton(scene, x, y, w, h, label, { color = 0x2f9fe0, textC
   draw(color, disabled ? 0.4 : 1);
 
   const text = scene.add.text(0, 0, label, {
-    fontFamily: 'Arial, sans-serif',
+    fontFamily: FONT_FAMILY,
     fontSize: `${fontSize}px`,
     fontStyle: 'bold',
     color: disabled ? '#dddddd' : textColor,

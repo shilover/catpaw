@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
-import { RING_PADDING, FISH_TEXTURE_W, FISH_TEXTURE_H, fishSpriteScale } from '../data/displayConfig.js';
+import {
+  RING_PADDING, FISH_TEXTURE_W, FISH_TEXTURE_H, fishSpriteScale,
+  PAPER_TILT_DEGREES, PAPER_SHADOW_OFFSET, PAPER_SHADOW_ALPHA,
+} from '../data/displayConfig.js';
 
 // A single fish waiting to be sliced. It idles in place (gentle bob) while a
 // per-fish countdown ring depletes. GameplayLane owns the cut geometry and the
@@ -14,9 +17,22 @@ export default class CuttableFish extends Phaser.GameObjects.Container {
     this.resolved = false;
     this.bobOffset = Math.random() * Math.PI * 2;
 
-    this.sprite = scene.add.sprite(0, 0, 'fish-' + fishType.key).setScale(fishSpriteScale(fishType.size));
+    const spriteScale = fishSpriteScale(fishType.size);
+
+    // A paper cut-out lying on a surface: a soft offset shadow, and never quite
+    // square to the world. The tilt is small enough not to disturb the cut
+    // maths, which measures the body ellipse from the sprite's own radii.
+    this.shadow = scene.add.sprite(
+      PAPER_SHADOW_OFFSET * fishType.size, PAPER_SHADOW_OFFSET * fishType.size, 'fish-' + fishType.key,
+    ).setScale(spriteScale).setTint(0x00161f).setAlpha(PAPER_SHADOW_ALPHA);
+
+    this.sprite = scene.add.sprite(0, 0, 'fish-' + fishType.key).setScale(spriteScale);
     this.ring = scene.add.graphics();
-    this.add([this.ring, this.sprite]);
+    this.add([this.ring, this.shadow, this.sprite]);
+
+    this.tilt = Phaser.Math.FloatBetween(-PAPER_TILT_DEGREES, PAPER_TILT_DEGREES);
+    this.shadow.setAngle(this.tilt);
+    this.sprite.setAngle(this.tilt);
 
     // Design units, not texture pixels: the texture is supersampled, the sprite
     // is scaled back down, and the ring has to match what is actually on screen.

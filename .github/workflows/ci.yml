@@ -1,0 +1,32 @@
+name: CI
+
+# Runs on every push and every pull request. There is no deploy step here on
+# purpose — this workflow only tells you whether the code is still sound, it
+# never publishes anything.
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # `npm ci` installs exactly what package-lock.json pins, so a green run
+      # here means the same dependency tree a fresh clone would get.
+      - name: Install dependencies
+        run: npm ci
+
+      # Unit tests use Node's built-in runner, so there is nothing extra to set
+      # up. These cover the cut geometry and the scoring/difficulty rules.
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build

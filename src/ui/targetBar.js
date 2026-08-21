@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { FONT_FAMILY } from '../data/displayConfig.js';
 
 // The cut-accuracy bar: a 0%-50% scale (the smaller piece can never be more
 // than half the fish) with a tick every 5%, a marker for the fish's target
@@ -45,7 +46,7 @@ export default class TargetBar {
       this.ticks.lineBetween(tx, tickTop, tx, y + height - (isMajor ? -4 : 2));
       if (isMajor) {
         const label = this.scene.add.text(tx, y - 14, `${p}%`, {
-          fontFamily: 'Arial, sans-serif', fontSize: '12px', color: '#bfe9ff',
+          fontFamily: FONT_FAMILY, fontSize: '12px', color: '#bfe9ff',
         }).setOrigin(0.5, 1);
         this.labels.add(label);
       }

@@ -94,10 +94,10 @@ export function getFishType(key) {
 // idle bob), the ring countdown shortens a little, and cuts must be faster.
 // Stage is picked from elapsed seconds into the round.
 export const DIFFICULTY_STAGES = [
-  { minElapsed: 0, label: 'Calm Water', windAmplitude: 0, windSpeed: 0, cutTimeLimit: 5.0, bandColor: 0x2fbf71 },
-  { minElapsed: 18, label: 'Light Current', windAmplitude: 26, windSpeed: 1.6, cutTimeLimit: 4.5, bandColor: 0x53c7ff },
-  { minElapsed: 36, label: 'Strong Current', windAmplitude: 48, windSpeed: 2.4, cutTimeLimit: 4.0, bandColor: 0xffd23f },
-  { minElapsed: 52, label: 'Riptide!', windAmplitude: 74, windSpeed: 3.2, cutTimeLimit: 3.5, bandColor: 0xff5a5a },
+  { minElapsed: 0, labelKey: 'stageCalm', windAmplitude: 0, windSpeed: 0, cutTimeLimit: 5.0, bandColor: 0x2fbf71 },
+  { minElapsed: 18, labelKey: 'stageLight', windAmplitude: 26, windSpeed: 1.6, cutTimeLimit: 4.5, bandColor: 0x53c7ff },
+  { minElapsed: 36, labelKey: 'stageStrong', windAmplitude: 48, windSpeed: 2.4, cutTimeLimit: 4.0, bandColor: 0xffd23f },
+  { minElapsed: 52, labelKey: 'stageRiptide', windAmplitude: 74, windSpeed: 3.2, cutTimeLimit: 3.5, bandColor: 0xff5a5a },
 ];
 
 // --- Combo -----------------------------------------------------------------

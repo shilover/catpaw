@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { ROUND_TIME_LIMIT } from '../data/fishData.js';
 import { addLaneBackground, addBubbles } from '../ui/backgroundEffects.js';
 import { createButton } from '../ui/createButton.js';
-import { PORTRAIT_W, PORTRAIT_H, SPLIT_Y } from '../data/displayConfig.js';
+import { PORTRAIT_W, PORTRAIT_H, SPLIT_Y, FONT_FAMILY } from '../data/displayConfig.js';
 import { formatClock } from '../utils/format.js';
 import { startMusic, playSfx, SFX } from '../audio/audio.js';
 
@@ -103,7 +103,7 @@ export default class SplitScreenSceneBase extends Phaser.Scene {
     const cx = region.x + region.width - 76;
     const cy = region.y + 22;
     const timeText = this.add.text(cx + 20, cy, formatClock(ROUND_TIME_LIMIT), {
-      fontFamily: 'Arial, sans-serif', fontSize: '14px', fontStyle: 'bold', color: '#ffffff',
+      fontFamily: FONT_FAMILY, fontSize: '14px', fontStyle: 'bold', color: '#ffffff',
     }).setOrigin(1, 0.5).setDepth(60);
 
     const btnX = region.x + region.width - 32;

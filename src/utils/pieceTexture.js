@@ -14,6 +14,11 @@
 // .generateTexture` goes through `textures.createCanvas` under both renderers —
 // so the source is always drawable.
 
+import { PAPER_CORE } from './paper.js';
+
+// Thickness of the pale core exposed along a fresh cut, in texture pixels.
+const CUT_EDGE_WIDTH = 7;
+
 let sequence = 0;
 
 // Converts a world-space polygon into the piece texture's own pixel space.
@@ -26,7 +31,21 @@ export function toTextureSpace(polygon, centerX, centerY, scale, texW, texH) {
   }));
 }
 
-export function createPieceTexture(scene, sourceKey, texW, texH, polygonTexSpace) {
+// Tells the blade line apart from the body outline. The piece polygon is the
+// body ellipse clipped by the cut, so all of its edges lie on the ellipse
+// except the one the blade made. Ellipse edges have midpoints a hair inside the
+// boundary (cos of half a segment, ~0.994 for a 28-gon); the cut chord's
+// midpoint sits far further in, so a threshold cleanly separates the two.
+const ELLIPSE_EDGE_CUTOFF = 0.97;
+
+function isCutEdge(a, b, cx, cy, rx, ry) {
+  const mx = (a.x + b.x) / 2 - cx;
+  const my = (a.y + b.y) / 2 - cy;
+  const normalized = Math.sqrt((mx / rx) ** 2 + (my / ry) ** 2);
+  return normalized < ELLIPSE_EDGE_CUTOFF;
+}
+
+export function createPieceTexture(scene, sourceKey, texW, texH, polygonTexSpace, bodyRx, bodyRy) {
   const source = scene.textures.get(sourceKey);
   if (!source) return null;
 
@@ -45,6 +64,29 @@ export function createPieceTexture(scene, sourceKey, texW, texH, polygonTexSpace
   polygonTexSpace.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
   ctx.closePath();
   ctx.fill();
+
+  // Freshly cut paper shows its pale core along the blade line — but only
+  // there. The rest of this outline is the fish's own torn edge, which should
+  // keep the deckled look it was given at boot. 'source-atop' additionally
+  // keeps the stroke from bleeding outside the piece.
+  if (bodyRx > 0 && bodyRy > 0) {
+    const cx = texW / 2;
+    const cy = texH / 2;
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.strokeStyle = PAPER_CORE;
+    ctx.lineWidth = CUT_EDGE_WIDTH;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < polygonTexSpace.length; i++) {
+      const a = polygonTexSpace[i];
+      const b = polygonTexSpace[(i + 1) % polygonTexSpace.length];
+      if (!isCutEdge(a, b, cx, cy, bodyRx, bodyRy)) continue;
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+    }
+    ctx.stroke();
+  }
+
   ctx.globalCompositeOperation = 'source-over';
 
   canvasTexture.refresh();

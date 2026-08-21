@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { CUT_FISH_TYPES, OCTOPUS_BONUS } from '../data/fishData.js';
 import { SAND_HEIGHT, FISH_TEXTURE_W, FISH_TEXTURE_H, FISH_SUPERSAMPLE } from '../data/displayConfig.js';
 import { initAudio } from '../audio/audio.js';
+import { paperize } from '../utils/paper.js';
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -60,6 +61,10 @@ export default class BootScene extends Phaser.Scene {
 
     g.generateTexture('bg-underwater', w, h);
     g.destroy();
+    // The backdrop is one big uncut sheet: grain, but no torn outline.
+    paperize(this.textures.get('bg-underwater'), {
+      seed: 3, grain: 0.06, tearEdges: false, edgeShade: 0,
+    });
   }
 
   buildBubble() {
@@ -90,6 +95,7 @@ export default class BootScene extends Phaser.Scene {
     g.fillCircle(38, 12, 6);
     g.generateTexture('paw', 46, 40);
     g.destroy();
+    paperize(this.textures.get('paw'), { seed: 9, grain: 0.1, tear: 2 });
   }
 
   buildFishTexture(key, fish) {
@@ -119,6 +125,16 @@ export default class BootScene extends Phaser.Scene {
 
     g.generateTexture(key, w * FISH_SUPERSAMPLE, h * FISH_SUPERSAMPLE);
     g.destroy();
+
+    // Each fish is a hand-cut shape: fibre grain, a pressed rim, and a torn
+    // outline. The tear is scaled with the supersample so it stays the same
+    // size on screen no matter what the texture resolution is.
+    paperize(this.textures.get(key), {
+      seed: hashSeed(key),
+      grain: 0.14,
+      tear: FISH_SUPERSAMPLE,
+      edgeShade: 0.24,
+    });
   }
 
   drawClownFish(g, cx, cy, fish) {
@@ -290,4 +306,11 @@ function quadraticLineTo(g, p0, ctrl, p1, segments = 8) {
     const y = mt * mt * p0.y + 2 * mt * t * ctrl.y + t * t * p1.y;
     g.lineTo(x, y);
   }
+}
+
+// Stable per-key seed, so each fish gets its own grain but always the same one.
+function hashSeed(key) {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
+  return Math.abs(h % 9973) + 1;
 }

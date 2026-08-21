@@ -23,6 +23,7 @@ import {
   pointSegmentDistance,
   horizontalChordOffsetForPercent,
 } from '../utils/polygonCut.js';
+import { t } from '../i18n/index.js';
 import {
   HUD_HEIGHT,
   FLOOR_MARGIN,
@@ -32,6 +33,7 @@ import {
   FISH_PIXEL_H,
   fishSpriteScale,
   RING_PADDING,
+  FONT_FAMILY,
 } from '../data/displayConfig.js';
 
 // A swipe shorter than this fraction of the lane's smaller side counts as a tap,
@@ -127,19 +129,19 @@ export default class GameplayLane {
     hudBg.fillRoundedRect(x, y, w, HUD_HEIGHT, { tl: 0, tr: 0, bl: 14, br: 14 });
     this.hudBg = hudBg;
 
-    this.scoreText = this.scene.add.text(x + w / 2, y + 34, 'Score: 0', {
-      fontFamily: 'Arial, sans-serif', fontSize: '24px', fontStyle: 'bold', color: '#ffe38a',
+    this.scoreText = this.scene.add.text(x + w / 2, y + 34, t('score', { score: 0 }), {
+      fontFamily: FONT_FAMILY, fontSize: '24px', fontStyle: 'bold', color: '#ffe38a',
     }).setOrigin(0.5);
 
-    this.stageText = this.scene.add.text(x + 16, y + 12, this.stage.label, {
-      fontFamily: 'Arial, sans-serif', fontSize: '13px', fontStyle: 'bold', color: '#bfe9ff',
+    this.stageText = this.scene.add.text(x + 16, y + 12, t(this.stage.labelKey), {
+      fontFamily: FONT_FAMILY, fontSize: '13px', fontStyle: 'bold', color: '#bfe9ff',
     }).setOrigin(0, 0.5);
 
     // Below the HUD strip rather than inside it: the strip already stacks the
     // stage label, the score and the target bar's percentage labels into 96px,
     // and anything else put in there collides with the bar's "0%" tick.
     this.comboText = this.scene.add.text(x + 16, y + HUD_HEIGHT + 20, '', {
-      fontFamily: 'Arial, sans-serif', fontSize: '18px', fontStyle: 'bold', color: '#ffd23f',
+      fontFamily: FONT_FAMILY, fontSize: '18px', fontStyle: 'bold', color: '#ffd23f',
       stroke: '#00121f', strokeThickness: 4,
     }).setOrigin(0, 0.5);
 
@@ -153,7 +155,10 @@ export default class GameplayLane {
       this.comboText.setText('');
       return;
     }
-    this.comboText.setText('COMBO x' + this.combo + '   ' + comboMultiplier(this.combo).toFixed(2) + 'x');
+    this.comboText.setText(t('combo', {
+      count: this.combo,
+      multiplier: comboMultiplier(this.combo).toFixed(2),
+    }));
     this.comboText.setScale(1.35);
     this.scene.tweens.add({ targets: this.comboText, scale: 1, duration: 180, ease: 'Back.easeOut' });
   }
@@ -184,7 +189,7 @@ export default class GameplayLane {
     const stage = getStageForElapsed(seconds);
     if (stage !== this.stage) {
       this.stage = stage;
-      this.stageText.setText(stage.label);
+      this.stageText.setText(t(stage.labelKey));
       this.stageText.setColor(Phaser.Display.Color.RGBToString(
         (stage.bandColor >> 16) & 0xff, (stage.bandColor >> 8) & 0xff, stage.bandColor & 0xff, 255,
       ));
@@ -199,9 +204,9 @@ export default class GameplayLane {
     const banner = this.scene.add.text(
       this.regionX + this.regionW / 2,
       this.regionY + this.regionH / 2,
-      stage.label.toUpperCase(),
+      t(stage.labelKey).toUpperCase(),
       {
-        fontFamily: 'Arial, sans-serif', fontSize: '30px', fontStyle: 'bold',
+        fontFamily: FONT_FAMILY, fontSize: '30px', fontStyle: 'bold',
         color: '#ffffff', stroke: '#0a2a4a', strokeThickness: 6,
       },
     ).setOrigin(0.5).setAlpha(0).setDepth(45).setScale(0.7);
@@ -309,7 +314,7 @@ export default class GameplayLane {
     this.wobble = null;
     this.stats.missedCount += 1;
     this.breakCombo();
-    this.showFeedback(fish.x, fish.y - 40, 'Missed!', '#ff5a5a');
+    this.showFeedback(fish.x, fish.y - 40, t('missed'), '#ff5a5a');
     playSfx(this.scene, SFX.MISS);
     this.onMissed();
     fish.playMissedAnimation(() => this.afterFishResolved());
@@ -349,8 +354,8 @@ export default class GameplayLane {
   drawTrail(points) {
     this.trailGraphics.clear();
     for (let i = 1; i < points.length; i++) {
-      const t = i / (points.length - 1);
-      this.trailGraphics.lineStyle(2 + 4 * t, 0xffffff, 0.15 + 0.7 * t);
+      const progress = i / (points.length - 1);
+      this.trailGraphics.lineStyle(2 + 4 * progress, 0xffffff, 0.15 + 0.7 * progress);
       this.trailGraphics.lineBetween(points[i - 1].x, points[i - 1].y, points[i].x, points[i].y);
     }
   }
@@ -470,15 +475,15 @@ export default class GameplayLane {
     this.stats.cutCount += 1;
     if (isPerfect) this.stats.perfectCount += 1;
     else if (isNearPerfect) this.stats.nearPerfectCount += 1;
-    this.scoreText.setText('Score: ' + this.score);
+    this.scoreText.setText(t('score', { score: this.score }));
     this.onScoreChange(this.score);
 
     if (this.targetBar) this.targetBar.animateFillTo(snapped, { color: isPerfect ? 0xffd23f : 0x2fbf71 });
 
     const comboSuffix = multiplier > 1 ? '  x' + multiplier.toFixed(2) : '';
-    const label = isPerfect
-      ? 'PERFECT! +' + points + comboSuffix
-      : snapped + '% (target ' + fish.targetPercent + '%)  +' + points + comboSuffix;
+    const label = (isPerfect
+      ? t('perfectCut', { points })
+      : t('cutResult', { percent: snapped, target: fish.targetPercent, points })) + comboSuffix;
     this.showFeedback(fish.x, fish.y - 50, label, isPerfect ? '#ffd23f' : '#8affc1');
 
     playSfx(this.scene, isPerfect ? SFX.PERFECT : SFX.CUT);
@@ -520,6 +525,11 @@ export default class GameplayLane {
     const size = fish.fishType.size;
     const cx = fish.x;
     const cy = fish.y;
+    // The body ellipse in texture pixels, so the piece baker can tell the blade
+    // line apart from the fish's own outline.
+    const { rx, ry } = fish.getRadii();
+    const bodyRxTex = rx / fishSpriteScale(size);
+    const bodyRyTex = ry / fishSpriteScale(size);
     fish.destroy();
 
     // Push the halves apart along the cut's normal instead of comparing centroid
@@ -534,7 +544,9 @@ export default class GameplayLane {
       // supersampled one, so convert through the sprite's real scale.
       const spriteScale = fishSpriteScale(size);
       const texPoly = toTextureSpace(poly, cx, cy, spriteScale, FISH_PIXEL_W, FISH_PIXEL_H);
-      const pieceKey = createPieceTexture(this.scene, textureKey, FISH_PIXEL_W, FISH_PIXEL_H, texPoly);
+      const pieceKey = createPieceTexture(
+        this.scene, textureKey, FISH_PIXEL_W, FISH_PIXEL_H, texPoly, bodyRxTex, bodyRyTex,
+      );
       if (!pieceKey) return;
 
       const piece = this.scene.add.sprite(cx, cy, pieceKey).setScale(spriteScale);
@@ -569,7 +581,7 @@ export default class GameplayLane {
     this.score += score;
     this.bonusScore += score;
     this.stats.octopusCount += 1;
-    this.scoreText.setText('Score: ' + this.score);
+    this.scoreText.setText(t('score', { score: this.score }));
     this.onScoreChange(this.score);
     this.showFeedback(x, y, '+' + score, '#ffd23f');
     playSfx(this.scene, SFX.BONUS);
@@ -581,7 +593,7 @@ export default class GameplayLane {
     if (this.combo >= COMBO_MIN_TO_SHOW) {
       this.showFeedback(
         this.regionX + this.regionW / 2, this.hudTop + HUD_HEIGHT + 52,
-        'COMBO LOST', '#ff9de2',
+        t('comboLost'), '#ff9de2',
       );
       playSfx(this.scene, SFX.COMBO_BREAK);
     }
@@ -590,17 +602,17 @@ export default class GameplayLane {
   }
 
   showFeedback(x, y, str, color) {
-    const t = this.scene.add.text(x, y, str, {
-      fontFamily: 'Arial, sans-serif', fontSize: '22px', fontStyle: 'bold', color,
+    const popup = this.scene.add.text(x, y, str, {
+      fontFamily: FONT_FAMILY, fontSize: '22px', fontStyle: 'bold', color,
       stroke: '#00121f', strokeThickness: 4,
     }).setOrigin(0.5).setDepth(30);
     this.scene.tweens.add({
-      targets: t,
+      targets: popup,
       y: y - 60,
       alpha: 0,
       duration: 750,
       ease: 'Cubic.easeOut',
-      onComplete: () => t.destroy(),
+      onComplete: () => popup.destroy(),
     });
   }
 
@@ -618,7 +630,7 @@ export default class GameplayLane {
       this.obstructionLayer.fillStyle(0x2a0050, 0.5);
       this.obstructionLayer.fillCircle(px, py, r);
     }
-    this.showFeedback(this.regionX + this.regionW / 2, this.regionY + this.regionH / 2, 'INKED!', '#d0a4ff');
+    this.showFeedback(this.regionX + this.regionW / 2, this.regionY + this.regionH / 2, t('inked'), '#d0a4ff');
 
     this.scene.tweens.add({
       targets: this.obstructionLayer,
@@ -636,7 +648,7 @@ export default class GameplayLane {
     const fish = this.currentFish;
     if (!fish || fish.resolved) return;
     this.wobble = { fish, originalX: fish.baseX, elapsed: 0, duration: durationMs };
-    this.showFeedback(fish.x, fish.y - 70, 'Wobbled!', '#ff9de2');
+    this.showFeedback(fish.x, fish.y - 70, t('wobbled'), '#ff9de2');
   }
 
   // --- lifecycle ------------------------------------------------------------
